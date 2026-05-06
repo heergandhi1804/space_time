@@ -169,11 +169,62 @@
             visibility: hidden
         }
 
+        #cockpit {
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, .13);
+            padding: 14px;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            pointer-events: auto;
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, .18);
+            visibility: hidden;
+        }
+
         #cockpit label {
             color: white;
             display: flex;
             flex-direction: column;
-            font-size: .9em
+            font-size: .9em;
+        }
+
+        .camera-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .camera-title {
+            font-size: 0.82em;
+            font-weight: bold;
+            color: #ffffff;
+            opacity: 0.9;
+        }
+
+        .camera-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .camera-grid button {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: white;
+            border-radius: 7px;
+            padding: 7px 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .camera-grid button:hover {
+            background: rgba(0, 255, 255, 0.22);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
         }
 
         #toast {
@@ -274,15 +325,44 @@
 
     <div id="cockpit">
         <div style="font-weight:bold;text-align:center">🎛 Camera</div>
-        <label>Orbit<input type="range" id="orbitSlider" min="0" max="360" value="0" oninput="updateCamera()"></label>
-        <label>Tilt<input type="range" id="tiltSlider" min="0" max="100" value="55" oninput="updateCamera()"></label>
-        <label>Zoom<input type="range" id="zoomSlider" min="20" max="200" value="60" oninput="updateCamera()"></label>
+
+        <div class="camera-section">
+            <div class="camera-title">Orbit</div>
+            <div class="camera-grid">
+                <button onclick="setOrbitView('north')">North</button>
+                <button onclick="setOrbitView('south')">South</button>
+                <button onclick="setOrbitView('east')">East</button>
+                <button onclick="setOrbitView('west')">West</button>
+            </div>
+        </div>
+
+        <div class="camera-section">
+            <div class="camera-title">Zoom</div>
+            <div class="camera-grid">
+                <button onclick="setZoomLevel(0.5)">0.5x</button>
+                <button onclick="setZoomLevel(1)">1x</button>
+                <button onclick="setZoomLevel(2)">2x</button>
+                <button onclick="setZoomLevel(3)">3x</button>
+            </div>
+        </div>
+
+        <div class="camera-section">
+            <div class="camera-title">Tilt</div>
+            <div class="camera-grid">
+                <button onclick="setTiltView('top')">Top View</button>
+                <button onclick="setTiltView('side')">Side View</button>
+            </div>
+        </div>
+
         <button onclick="resetCamera()"
-            style="background:#555;border:none;border-radius:6px;padding:7px;color:white;font-weight:bold">⌖ Reset
-            View</button>
+            style="background:#555;border:none;border-radius:6px;padding:7px;color:white;font-weight:bold">
+            Reset View
+        </button>
+
         <button onclick="clearSelection()"
-            style="background:#ff4444;border:none;border-radius:6px;padding:7px;color:white;font-weight:bold">✕
-            Deselect</button>
+            style="background:#ff4444;border:none;border-radius:6px;padding:7px;color:white;font-weight:bold">
+            Deselect
+        </button>
     </div>
 
     <div id="escaped-box">
@@ -979,8 +1059,7 @@
 
         renderer.domElement.addEventListener('wheel', e => {
             targetRadius = Math.max(300, Math.min(6000, targetRadius + e.deltaY * 1.2));
-            document.getElementById('zoomSlider').value =
-                100 - (targetRadius - 300) / (6000 - 300) * 80;
+            autoFollow = false;
             e.preventDefault();
         }, { passive: false });
 
@@ -993,20 +1072,57 @@
         // ═══════════════════════════════════════════════════════
         //  CAMERA UI
         // ═══════════════════════════════════════════════════════
-        function updateCamera() {
-            targetTheta = document.getElementById('orbitSlider').value * Math.PI / 180;
-            targetPhi = Math.max(0.15, document.getElementById('tiltSlider').value * Math.PI / 100 + 0.15);
-            const zv = document.getElementById('zoomSlider').value;
-            targetRadius = 300 + (100 - zv) / 80 * (6000 - 300);
+        const BASE_CAMERA_RADIUS = 2400;
+
+        function setOrbitView(direction) {
+            const views = {
+                north: 0,
+                east: Math.PI / 2,
+                south: Math.PI,
+                west: Math.PI * 1.5
+            };
+
+            targetTheta = views[direction];
+            autoFollow = false;
+        }
+
+        function setZoomLevel(level) {
+            const zoomViews = {
+                0.5: 3200, // far / overview
+                1: 2400,   // normal wide view
+                2: 1900,   // closer, but not too much
+                3: 1500    // close view
+            };
+
+            targetRadius = zoomViews[level];
+            autoFollow = false;
+        }
+
+        function setTiltView(view) {
+            if (view === 'top') {
+                targetPhi = 0.18;
+                targetRadius = 2800;
+            }
+
+            if (view === 'side') {
+                targetPhi = 1.42;
+                targetRadius = 2400;
+            }
+
+            autoFollow = false;
         }
 
         function resetCamera() {
-            targetTheta = 0; targetPhi = 1.15; targetRadius = 1800;
-            camX = 0; camY = 0; targetCamX = 0; targetCamY = 0;
+            targetTheta = 0;
+            targetPhi = 1.15;
+            targetRadius = BASE_CAMERA_RADIUS;
+
+            camX = 0;
+            camY = 0;
+            targetCamX = 0;
+            targetCamY = 0;
+
             autoFollow = true;
-            document.getElementById('orbitSlider').value = 0;
-            document.getElementById('tiltSlider').value = 55;
-            document.getElementById('zoomSlider').value = 60;
         }
 
         // ═══════════════════════════════════════════════════════
@@ -1058,12 +1174,18 @@
             });
 
             if (s === 1) {
-                // Wider view showing more of the solar system
-                targetRadius = 2200; targetPhi = 1.32; targetCamX = -160; targetCamY = 0;
-                camX = -160; autoFollow = false;
-                document.getElementById('tiltSlider').value = 68;
-                document.getElementById('zoomSlider').value = 42;
+                // Default Stage 1 side view
+                targetTheta = 0;
+                targetPhi = 1.48;
+                targetRadius = 2400;
+
+                targetCamX = -220;
+                targetCamY = 0;
+                camX = -220;
+
+                autoFollow = false;
             }
+
 
             if (s === 3) {
                 updateCustomPanel(sunObj);
