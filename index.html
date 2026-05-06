@@ -654,6 +654,22 @@
         }
 
         // ═══════════════════════════════════════════════════
+        //  SPACE-TIME GRID
+        // ═══════════════════════════════════════════════════
+        const textureLoader = new THREE.TextureLoader();
+
+        const PLANET_TEXTURES = {
+            Sun: textureLoader.load('textures/sun.png'),
+            Mercury: textureLoader.load('textures/mercury.png'),
+            Venus: textureLoader.load('textures/venus.png'),
+            Earth: textureLoader.load('textures/earth.png'),
+            Mars: textureLoader.load('textures/mars.png'),
+            Jupiter: textureLoader.load('textures/jupiter.png'),
+            Saturn: textureLoader.load('textures/saturn.png'),
+            Uranus: textureLoader.load('textures/uranus.png'),
+            Neptune: textureLoader.load('textures/neptune.png')
+        };
+        // ═══════════════════════════════════════════════════
         //  LIGHTING
         //  FIX 7: Sun light starts at a sensible above-grid Y;
         //         it is updated every frame from the actual mesh world position.
@@ -797,14 +813,24 @@
         function hexColor(c) { return '#' + c.toString(16).padStart(6, '0'); }
         function threeColor(hex) { return new THREE.Color(hex); }
 
-        function makePlanetMesh(mass, colorHex) {
+        function makePlanetMesh(name, mass, colorHex) {
             const r = mass * 0.45;
-            const col = threeColor(colorHex);
+
+            const texture = PLANET_TEXTURES[name] || null;
+
             const mat = new THREE.MeshStandardMaterial({
-                color: col, emissive: col.clone().multiplyScalar(0.25),
-                roughness: 0.45, metalness: 0.1
+                map: texture,
+                color: 0xffffff,
+                emissive: 0x555555,
+                emissiveIntensity: 0.45,
+                roughness: 0.8,
+                metalness: 0.02
             });
-            return new THREE.Mesh(new THREE.SphereGeometry(r, 32, 24), mat);
+
+            return new THREE.Mesh(
+                new THREE.SphereGeometry(r, 32, 24),
+                mat
+            );
         }
 
         function makeSelectionRing(r) {
@@ -831,7 +857,7 @@
         }
 
         function addPlanet(x, z, m, colorHex, name, shape, r, isOriginal = false) {
-            const mesh = makePlanetMesh(m, colorHex);
+            const mesh = makePlanetMesh(name, m, colorHex);
             const selRing = makeSelectionRing(m * 0.45);
             const glow = makeGlowSprite(colorHex, m * 0.45);
             let orbitRing = null;
@@ -873,7 +899,7 @@
         }
 
         function makeSun(mass) {
-            const mesh = makePlanetMesh(mass, '#FFD700');
+            const mesh = makePlanetMesh('Sun', mass, '#FFD700');
             mesh.material.emissive = new THREE.Color(0xffd700);
             mesh.material.emissiveIntensity = 0.6;
             const selRing = makeSelectionRing(mass * 0.45);
