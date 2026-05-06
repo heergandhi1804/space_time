@@ -302,19 +302,31 @@
         const G = 5;
         const STAGE_2_ESCAPE_DISTANCE = 1200;
         const GRID_SIZE = 2600;
-        const GRID_RES = 38;   // grid segments per side
+        const GRID_RES = 14;   // grid segments per side
         const GRID_SEGS = Math.floor(GRID_SIZE * 2 / GRID_RES);
 
+        const ORBIT_SCALE = 15.8; // increase/decrease this to expand/contract all orbits
+
+        function scaledOrbitDistance(distanceMillionKm) {
+            return Math.sqrt(distanceMillionKm) * ORBIT_SCALE;
+        }
+
         const SOLAR = [
-            { name: 'Mercury', m: 25, c: 0x8888ff, r: 120 },
-            { name: 'Venus', m: 38, c: 0xffdd44, r: 195 },
-            { name: 'Earth', m: 40, c: 0x00ccff, r: 270 },
-            { name: 'Mars', m: 30, c: 0xff4400, r: 345 },
-            { name: 'Jupiter', m: 90, c: 0xffaa22, r: 465 },
-            { name: 'Saturn', m: 75, c: 0xffe090, r: 600 },
-            { name: 'Uranus', m: 55, c: 0x44ffdd, r: 720 },
-            { name: 'Neptune', m: 53, c: 0x0088ff, r: 825 },
-        ];
+            { name: 'Mercury', m: 25, c: 0x8888ff, distance: 108.9 },
+            { name: 'Venus', m: 38, c: 0xffdd44, distance: 158.2 },
+            { name: 'Earth', m: 40, c: 0x00ccff, distance: 199.6 },
+            { name: 'Mars', m: 30, c: 0xff4400, distance: 298.0 },
+            { name: 'Jupiter', m: 90, c: 0xffaa22, distance: 828.5 },
+            { name: 'Saturn', m: 75, c: 0xffe090, distance: 1482.0 },
+            { name: 'Uranus', m: 55, c: 0x44ffdd, distance: 2917.0 },
+            { name: 'Neptune', m: 53, c: 0x0088ff, distance: 4565.0 },
+        ].map(p => ({
+            ...p,
+            r: scaledOrbitDistance(p.distance)
+        }));
+
+        //const PLANET_CONTACT_OFFSET = -4;
+        //const SUN_CONTACT_OFFSET = -2;
 
         // ═══════════════════════════════════════════════════════
         //  THREE.JS CORE
@@ -405,6 +417,21 @@
             return y;
         }
 
+        function contactDepthForPlanet(p) {
+            const radius = p.mass * 0.45;
+
+            // Sample near the edge of the planet, not the exact centre.
+            // This avoids the planet sinking through the deepest point of its own well.
+            const sampleOffset = Math.max(radius * 0.9, 12);
+
+            const d1 = warpDepth(p.x + sampleOffset, p.z, null);
+            const d2 = warpDepth(p.x - sampleOffset, p.z, null);
+            const d3 = warpDepth(p.x, p.z + sampleOffset, null);
+            const d4 = warpDepth(p.x, p.z - sampleOffset, null);
+
+            return Math.max(d1, d2, d3, d4);
+        }
+
         function updateGrid() {
             const pos = gridGeo.attributes.position;
             const col = gridGeo.attributes.color;
@@ -424,16 +451,27 @@
         // ═══════════════════════════════════════════════════════
         //  ORBIT RINGS (LineLoop per planet)
         // ═══════════════════════════════════════════════════════
-        function buildOrbitRingGeo(dist, shape) {
+        function buildOrbitRingGeo(dist, shape, primary = null) {
             const pts = [];
-            const steps = 120;
+            const steps = 160;
+
+            const cx = primary ? primary.x : 0;
+            const cz = primary ? primary.z : 0;
+
             for (let i = 0; i <= steps; i++) {
                 const a = (i / steps) * Math.PI * 2;
                 const pos = geoPos(a, dist, shape);
-                pts.push(new THREE.Vector3(pos.x, 0, pos.y));
+
+                const wx = cx + pos.x;
+                const wz = cz + pos.y;
+
+                // Put orbit ring slightly above the fabric surface.
+                const wy = warpDepth(wx, wz) + 3;
+
+                pts.push(new THREE.Vector3(wx, wy, wz));
             }
-            const geo = new THREE.BufferGeometry().setFromPoints(pts);
-            return geo;
+
+            return new THREE.BufferGeometry().setFromPoints(pts);
         }
 
         function geoPos(a, r, s) {
@@ -518,10 +556,18 @@
 
             let orbitRing = null;
             if (sunObj) {
-                const rGeo = buildOrbitRingGeo(r, shape);
-                const rMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 });
+                const rGeo = buildOrbitRingGeo(r, shape, sunObj);
+                const rMat = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.18
+                });
+
                 orbitRing = new THREE.LineLoop(rGeo, rMat);
-                orbitRing.position.set(sunObj.x, 0, sunObj.z);
+
+                // Orbit ring geometry is now already in world coordinates.
+                orbitRing.position.set(0, 0, 0);
+
                 scene.add(orbitRing);
             }
 
@@ -596,23 +642,46 @@
         }
 
         function syncMeshPosition(p) {
-            const wy = warpDepth(p.x, p.z, p);
-            const r = p.mass * 0.45;
-            p.mesh.position.set(p.x, wy + r, p.z);
-            p.glow.position.set(p.x, wy + r, p.z);
-            sunLight.position.copy(p.mesh.position); // moves with sun if p===sunObj
+            const radius = p.mass * 0.45;
+
+            let wy;
+
+            if (p === sunObj) {
+                // Keep Sun stable. Do not include its own well at centre.
+                wy = warpDepth(p.x, p.z, p);
+            } else {
+                // Use the nearby visible fabric around the planet's own indentation.
+                wy = contactDepthForPlanet(p);
+            }
+
+            // Lower = closer to the fabric.
+            // Try -10, -20, -30.
+            const CONTACT_OFFSET = p === sunObj ? -144 : 12;
+
+            p.mesh.position.set(p.x, wy + radius + CONTACT_OFFSET, p.z);
+            p.glow.position.set(p.x, wy + radius + CONTACT_OFFSET, p.z);
         }
 
         // ═══════════════════════════════════════════════════════
         //  ORBIT RING POSITION UPDATE
         // ═══════════════════════════════════════════════════════
         function updateOrbitRing(p) {
-            if (!p.orbitRing || !p.primary) return;
-            // Lift ring to fabric surface at primary position
-            const wy = warpDepth(p.primary.x, p.primary.z);
-            p.orbitRing.position.set(p.primary.x, wy + 1, p.primary.z);
-        }
+            if (p.orbitRing && p !== sunObj) {
+                scene.remove(p.orbitRing);
 
+                const rGeo = buildOrbitRingGeo(p.dist, p.shape, p.primary);
+                const rMat = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: p.selRing.visible ? 0.65 : 0.18
+                });
+
+                p.orbitRing = new THREE.LineLoop(rGeo, rMat);
+                p.orbitRing.position.set(0, 0, 0);
+
+                scene.add(p.orbitRing);
+            }
+        }
         // ═══════════════════════════════════════════════════════
         //  SELECTION VISUALS
         // ═══════════════════════════════════════════════════════
