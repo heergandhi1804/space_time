@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space-Time Fabric</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        body {
+            background: #040410;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden
+        }
+
+        canvas {
+            display: block
+        }
+
+        button,
+        select,
+        input[type=range],
+        input[type=color],
+        .escaped-item {
+            cursor: pointer
+        }
+
+        #ui-header {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            text-align: center;
+            padding-top: 18px;
+            pointer-events: none;
+            z-index: 10
+        }
+
+        .nav {
+            margin-top: 12px;
+            pointer-events: auto
+        }
+
+        .btn {
+            padding: 11px 24px;
+            margin: 0 6px;
+            border: none;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: transform .15s, box-shadow .15s
+        }
+
+        .btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 14px rgba(255, 255, 255, .35)
+        }
+
+        #btn-1 {
+            background: #ffff00;
+            color: #000
+        }
+
+        #btn-2 {
+            background: #00ffff;
+            color: #000
+        }
+
+        #btn-3 {
+            background: #ff3366;
+            color: #fff
+        }
+
+        #landing-hub {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, .88);
+            padding: 50px 60px;
+            border-radius: 22px;
+            box-shadow: 0 0 50px rgba(0, 200, 255, .18);
+            z-index: 20;
+            border: 1px solid rgba(0, 255, 255, .25);
+            backdrop-filter: blur(12px)
+        }
+
+        #landing-hub h1 {
+            font-size: 2.6em;
+            margin-bottom: 36px;
+            text-shadow: 0 0 18px #00ffff
+        }
+
+        #landing-hub .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            align-items: center
+        }
+
+        #landing-hub .btn {
+            font-size: 1.2em;
+            padding: 14px 40px;
+            width: 82%
+        }
+
+        #hint,
+        #hint-s1 {
+            margin-top: 8px;
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 6px;
+            font-size: .88em;
+            background: rgba(0, 0, 0, .6)
+        }
+
+        #hint {
+            color: #00ffff
+        }
+
+        #hint-s1 {
+            color: #ffff88
+        }
+
+        #custom-panel {
+            position: absolute;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, .13);
+            padding: 13px 20px;
+            border-radius: 14px;
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            visibility: hidden;
+            pointer-events: auto;
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, .18)
+        }
+
+        #custom-panel label {
+            color: white;
+            font-size: .9em
+        }
+
+        #cockpit {
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, .13);
+            padding: 14px;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            pointer-events: auto;
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, .18);
+            visibility: hidden
+        }
+
+        #cockpit label {
+            color: white;
+            display: flex;
+            flex-direction: column;
+            font-size: .9em
+        }
+
+        #toast {
+            position: absolute;
+            top: 95px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 50, 50, .92);
+            color: white;
+            padding: 11px 24px;
+            border-radius: 10px;
+            font-weight: bold;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .3s;
+            z-index: 100;
+            pointer-events: none
+        }
+
+        #escaped-box {
+            position: absolute;
+            bottom: 18px;
+            right: 18px;
+            width: 200px;
+            background: rgba(255, 68, 68, .1);
+            border: 2px solid #ff4444;
+            border-radius: 10px;
+            padding: 10px;
+            visibility: hidden;
+            pointer-events: auto
+        }
+
+        .escaped-item {
+            background: #222;
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: center;
+            cursor: pointer
+        }
+
+        /* Label divs */
+        .planet-label {
+            position: absolute;
+            color: white;
+            font: bold 12px 'Segoe UI', sans-serif;
+            text-shadow: 0 0 6px #000, 0 0 3px #000;
+            transform: translate(-50%, 0);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 6
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="landing-hub">
+        <h1>🪐 Solar System Adventure<br><span style="font-size:.5em;color:#aef;font-weight:normal;">A Journey through
+                Space-Time</span></h1>
+        <div class="nav">
+            <button class="btn" id="btn-1" onclick="setStage(1)">1 · Spin around Space</button>
+            <button class="btn" id="btn-2" onclick="setStage(2)">2 · Solar Playground</button>
+            <button class="btn" id="btn-3" onclick="setStage(3)">3 · Create your Universe</button>
+        </div>
+    </div>
+
+    <div id="toast">⏸ Pause before moving objects!</div>
+
+    <div id="ui-header" style="display:none">
+        <div class="nav">
+            <button class="btn" onclick="setStage(0)" style="background:#ff6666;color:white">← Hub</button>
+            <button class="btn" id="btn-play" onclick="togglePlay()"
+                style="background:#88ff88;color:black;display:none">▶ Play</button>
+        </div>
+        <p id="hint" style="display:none">Double-click space to add a planet · Shift+click to multi-select</p>
+        <p id="hint-s1" style="display:none">⏸ Pause · then drag planets to reposition along their orbit</p>
+    </div>
+
+    <div id="custom-panel">
+        <span id="target-name" style="font-weight:bold;color:#ffff00;min-width:70px">SUN</span>
+        <label>Mass<input type="range" id="massSlider" min="20" max="300" value="180" oninput="updateTarget()"></label>
+        <label id="shape-label">Orbit
+            <select id="shapeSelect" onchange="updateTarget()">
+                <option value="circle">Circle</option>
+                <option value="triangle">Triangle</option>
+                <option value="square">Square</option>
+                <option value="trapezoid">Trapezoid</option>
+            </select>
+        </label>
+        <input type="color" id="colorPicker" onchange="updateTarget()"
+            style="width:30px;height:30px;border:none;border-radius:5px">
+        <button id="delete-btn" onclick="deleteTarget()"
+            style="background:#ff4444;border:none;border-radius:6px;padding:7px 12px;color:white;font-weight:bold">✕
+            Delete</button>
+    </div>
+
+    <div id="cockpit">
+        <div style="font-weight:bold;text-align:center">🎛 Camera</div>
+        <label>Orbit<input type="range" id="orbitSlider" min="0" max="360" value="0" oninput="updateCamera()"></label>
+        <label>Tilt<input type="range" id="tiltSlider" min="0" max="100" value="55" oninput="updateCamera()"></label>
+        <label>Zoom<input type="range" id="zoomSlider" min="20" max="200" value="60" oninput="updateCamera()"></label>
+        <button onclick="resetCamera()"
+            style="background:#555;border:none;border-radius:6px;padding:7px;color:white;font-weight:bold">⌖ Reset
+            View</button>
+        <button onclick="clearSelection()"
+            style="background:#ff4444;border:none;border-radius:6px;padding:7px;color:white;font-weight:bold">✕
+            Deselect</button>
+    </div>
+
+    <div id="escaped-box">
+        <div style="font-weight:bold;color:#ff4444;margin-bottom:5px">🚀 Lost Planets</div>
+        <div id="lost-list"></div>
+        <button onclick="restoreSystem()"
+            style="background:#ff4444;border:none;border-radius:5px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:8px">↩
+            Restore</button>
+    </div>
+
+    <div id="labels"></div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════
+        //  CONSTANTS
+        // ═══════════════════════════════════════════════════════
+        const G = 5;
+        const STAGE_2_ESCAPE_DISTANCE = 1200;
+        const GRID_SIZE = 2600;
+        const GRID_RES = 38;   // grid segments per side
+        const GRID_SEGS = Math.floor(GRID_SIZE * 2 / GRID_RES);
+
+        const SOLAR = [
+            { name: 'Mercury', m: 25, c: 0x8888ff, r: 120 },
+            { name: 'Venus', m: 38, c: 0xffdd44, r: 195 },
+            { name: 'Earth', m: 40, c: 0x00ccff, r: 270 },
+            { name: 'Mars', m: 30, c: 0xff4400, r: 345 },
+            { name: 'Jupiter', m: 90, c: 0xffaa22, r: 465 },
+            { name: 'Saturn', m: 75, c: 0xffe090, r: 600 },
+            { name: 'Uranus', m: 55, c: 0x44ffdd, r: 720 },
+            { name: 'Neptune', m: 53, c: 0x0088ff, r: 825 },
+        ];
+
+        // ═══════════════════════════════════════════════════════
+        //  THREE.JS CORE
+        // ═══════════════════════════════════════════════════════
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x040410);
+        document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 20000);
+
+        // Camera spherical coords (orbit controls style, manual)
+        let camTheta = 0;       // azimuth (orbit slider)
+        let camPhi = 1.15;    // polar from top (tilt slider)
+        let camRadius = 1800;    // zoom
+        let camTarget = new THREE.Vector3(0, 0, 0);
+        let targetTheta = camTheta, targetPhi = camPhi, targetRadius = camRadius;
+        let targetCamX = 0, targetCamY = 0, camX = 0, camY = 0;
+
+        function updateCameraPosition() {
+            camera.position.set(
+                camTarget.x + camX + camRadius * Math.sin(camPhi) * Math.sin(camTheta),
+                camTarget.y + camY + camRadius * Math.cos(camPhi),
+                camTarget.z + camRadius * Math.sin(camPhi) * Math.cos(camTheta)
+            );
+            camera.lookAt(camTarget.x + camX, camTarget.y + camY, camTarget.z);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  LIGHTING
+        // ═══════════════════════════════════════════════════════
+        scene.add(new THREE.AmbientLight(0x404060, 1.2));
+        const sunLight = new THREE.PointLight(0xffd090, 2.5, 5000);
+        scene.add(sunLight);
+        const fillLight = new THREE.DirectionalLight(0x6080ff, 0.4);
+        fillLight.position.set(-1, 1, -1);
+        scene.add(fillLight);
+
+        // ═══════════════════════════════════════════════════════
+        //  SPACE-TIME GRID (BufferGeometry — vertex-displaced each frame)
+        // ═══════════════════════════════════════════════════════
+        const gridGeo = new THREE.BufferGeometry();
+        const VCOUNT = (GRID_SEGS + 1) * (GRID_SEGS + 1);
+        const positions = new Float32Array(VCOUNT * 3);
+        const gridColors = new Float32Array(VCOUNT * 3);
+
+        // Pre-compute XZ world positions of each vertex (Y is the warp axis)
+        const gridXZ = [];
+        for (let iz = 0; iz <= GRID_SEGS; iz++) {
+            for (let ix = 0; ix <= GRID_SEGS; ix++) {
+                gridXZ.push(
+                    -GRID_SIZE + ix * (GRID_SIZE * 2 / GRID_SEGS),
+                    -GRID_SIZE + iz * (GRID_SIZE * 2 / GRID_SEGS)
+                );
+            }
+        }
+
+        // Build line-segment indices: horizontal rows + vertical columns
+        const indexList = [];
+        for (let iz = 0; iz <= GRID_SEGS; iz++) {
+            for (let ix = 0; ix < GRID_SEGS; ix++) {
+                indexList.push(iz * (GRID_SEGS + 1) + ix, iz * (GRID_SEGS + 1) + ix + 1);
+            }
+        }
+        for (let ix = 0; ix <= GRID_SEGS; ix++) {
+            for (let iz = 0; iz < GRID_SEGS; iz++) {
+                indexList.push(iz * (GRID_SEGS + 1) + ix, (iz + 1) * (GRID_SEGS + 1) + ix);
+            }
+        }
+
+        gridGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        gridGeo.setAttribute('color', new THREE.BufferAttribute(gridColors, 3));
+        gridGeo.setIndex(indexList);
+
+        const gridMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55 });
+        const gridMesh = new THREE.LineSegments(gridGeo, gridMat);
+        scene.add(gridMesh);
+
+        function warpDepth(wx, wz, ignore = null) {
+            let y = 0;
+            for (const p of planets) {
+                if (p === ignore) continue;
+                const d = Math.hypot(p.x - wx, p.z - wz);
+                y += (-p.mass * 3.2) / (Math.pow(d / 20, 0.42) + 1);
+            }
+            return y;
+        }
+
+        function updateGrid() {
+            const pos = gridGeo.attributes.position;
+            const col = gridGeo.attributes.color;
+            for (let i = 0; i < VCOUNT; i++) {
+                const wx = gridXZ[i * 2];
+                const wz = gridXZ[i * 2 + 1];
+                const wy = warpDepth(wx, wz);
+                pos.setXYZ(i, wx, wy, wz);
+                // Colour: brighter near planet wells
+                const depth = Math.min(1, Math.abs(wy) / 300);
+                col.setXYZ(i, 0.35 + depth * 0.3, 0.5 + depth * 0.4, 0.9 + depth * 0.1);
+            }
+            pos.needsUpdate = true;
+            col.needsUpdate = true;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  ORBIT RINGS (LineLoop per planet)
+        // ═══════════════════════════════════════════════════════
+        function buildOrbitRingGeo(dist, shape) {
+            const pts = [];
+            const steps = 120;
+            for (let i = 0; i <= steps; i++) {
+                const a = (i / steps) * Math.PI * 2;
+                const pos = geoPos(a, dist, shape);
+                pts.push(new THREE.Vector3(pos.x, 0, pos.y));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            return geo;
+        }
+
+        function geoPos(a, r, s) {
+            let d = r;
+            if (s === 'triangle') {
+                const mod = ((a % (Math.PI * 2 / 3)) + Math.PI * 2 / 3) % (Math.PI * 2 / 3);
+                const den = Math.cos(mod - Math.PI / 3);
+                d = Math.abs(den) > 0.001 ? r * Math.cos(Math.PI / 3) / den : r;
+            } else if (s === 'square') {
+                d = r / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+            } else if (s === 'trapezoid') {
+                const sr = Math.max(Math.abs(Math.sin(a)), Math.abs(Math.cos(a)) + 0.3 * Math.sin(a));
+                d = r * 0.8 / Math.max(sr, 0.01);
+            }
+            return { x: Math.cos(a) * d, y: Math.sin(a) * d };
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  STATE
+        // ═══════════════════════════════════════════════════════
+        let stage = 0, planets = [], lostPlanets = [], sunObj = null;
+        let selectedPlanets = [], draggedPlanet = null, isPanning = false;
+        let isPlaying = false, speedFactor = 0;
+        let autoFollow = true;
+        let labelEls = {};
+
+        // Raycaster for hit-testing actual 3D meshes
+        const raycaster = new THREE.Raycaster();
+        const mouse2d = new THREE.Vector2();
+
+        // ═══════════════════════════════════════════════════════
+        //  PLANET FACTORY
+        // ═══════════════════════════════════════════════════════
+        function hexColor(c) { return '#' + c.toString(16).padStart(6, '0'); }
+        function threeColor(hex) { return new THREE.Color(hex); }
+
+        function makePlanetMesh(mass, colorHex) {
+            const r = mass * 0.45;
+            const geo = new THREE.SphereGeometry(r, 32, 24);
+            const col = threeColor(colorHex);
+            const mat = new THREE.MeshStandardMaterial({
+                color: col,
+                emissive: col.clone().multiplyScalar(0.25),
+                roughness: 0.45,
+                metalness: 0.1,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = false;
+            return mesh;
+        }
+
+        function makeSelectionRing(r) {
+            const geo = new THREE.RingGeometry(r + 6, r + 10, 48);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+            const ring = new THREE.Mesh(geo, mat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.visible = false;
+            return ring;
+        }
+
+        function makeGlowSprite(colorHex, r) {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            const c = threeColor(colorHex);
+            grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.6)`);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(r * 7, r * 7, 1);
+            return sprite;
+        }
+
+        function addPlanet(x, z, m, colorHex, name, shape, r, isOriginal = false) {
+            const mesh = makePlanetMesh(m, colorHex);
+            const selRing = makeSelectionRing(m * 0.45);
+            const glow = makeGlowSprite(colorHex, m * 0.45);
+
+            let orbitRing = null;
+            if (sunObj) {
+                const rGeo = buildOrbitRingGeo(r, shape);
+                const rMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 });
+                orbitRing = new THREE.LineLoop(rGeo, rMat);
+                orbitRing.position.set(sunObj.x, 0, sunObj.z);
+                scene.add(orbitRing);
+            }
+
+            // Label
+            if (!labelEls[name]) {
+                const el = document.createElement('div');
+                el.className = 'planet-label';
+                el.innerText = name;
+                document.getElementById('labels').appendChild(el);
+                labelEls[name] = el;
+            }
+            labelEls[name].style.display = 'block';
+
+            let vx = 0, vz = 0, angle = 0;
+            if (r > 0 && sunObj) {
+                const v = Math.sqrt(G * sunObj.mass / r);
+                angle = Math.atan2(z - sunObj.z, x - sunObj.x);
+                vx = -Math.sin(angle) * v; vz = Math.cos(angle) * v;
+            }
+
+            scene.add(mesh); scene.add(glow); mesh.add(selRing);
+
+            const p = {
+                x, z, mass: m, color: colorHex, name, shape,
+                initialR: r, initialAngle: angle, dist: r, angle,
+                initialMass: m, initialColor: colorHex, initialShape: shape,
+                vx, vz, primary: sunObj,
+                basePrimaryMass: sunObj ? sunObj.mass : 1,
+                isDynamic: false, isOriginal, history: [],
+                mesh, selRing, glow, orbitRing, w: undefined
+            };
+
+            mesh.userData.planet = p;
+            planets.push(p);
+            return p;
+        }
+
+        function makeSun(mass) {
+            const mesh = makePlanetMesh(mass, '#FFD700');
+            // Sun emissive glow
+            mesh.material.emissive = new THREE.Color(0xffd700);
+            mesh.material.emissiveIntensity = 0.6;
+            const selRing = makeSelectionRing(mass * 0.45);
+            const glow = makeGlowSprite('#FFD700', mass * 0.45);
+            scene.add(mesh); scene.add(glow); mesh.add(selRing);
+
+            if (!labelEls['SUN']) {
+                const el = document.createElement('div');
+                el.className = 'planet-label';
+                el.innerText = 'SUN';
+                document.getElementById('labels').appendChild(el);
+                labelEls['SUN'] = el;
+            }
+            labelEls['SUN'].style.display = 'block';
+
+            const s = {
+                x: 0, z: 0, mass, color: '#FFD700', name: 'SUN', shape: 'circle', dist: 0,
+                vx: 0, vz: 0, primary: null,
+                initialMass: mass, initialColor: '#FFD700', initialShape: 'circle',
+                basePrimaryMass: mass, isDynamic: false, isOriginal: true, history: [],
+                mesh, selRing, glow, orbitRing: null, angle: 0, w: undefined
+            };
+            mesh.userData.planet = s;
+            return s;
+        }
+
+        function removePlanetFromScene(p) {
+            scene.remove(p.mesh);
+            scene.remove(p.glow);
+            if (p.orbitRing) scene.remove(p.orbitRing);
+            if (labelEls[p.name]) labelEls[p.name].style.display = 'none';
+        }
+
+        function syncMeshPosition(p) {
+            const wy = warpDepth(p.x, p.z, p);
+            const r = p.mass * 0.45;
+            p.mesh.position.set(p.x, wy + r, p.z);
+            p.glow.position.set(p.x, wy + r, p.z);
+            sunLight.position.copy(p.mesh.position); // moves with sun if p===sunObj
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  ORBIT RING POSITION UPDATE
+        // ═══════════════════════════════════════════════════════
+        function updateOrbitRing(p) {
+            if (!p.orbitRing || !p.primary) return;
+            // Lift ring to fabric surface at primary position
+            const wy = warpDepth(p.primary.x, p.primary.z);
+            p.orbitRing.position.set(p.primary.x, wy + 1, p.primary.z);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  SELECTION VISUALS
+        // ═══════════════════════════════════════════════════════
+        function refreshSelectionVisuals() {
+            for (const p of planets) {
+                p.selRing.visible = selectedPlanets.includes(p);
+                if (p.orbitRing) {
+                    const sel = selectedPlanets.includes(p);
+                    p.orbitRing.material.opacity = sel ? 0.65 : 0.12;
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  LABELS — project 3D position to screen
+        // ═══════════════════════════════════════════════════════
+        function updateLabels() {
+            for (const p of planets) {
+                const el = labelEls[p.name];
+                if (!el) continue;
+                const wy = warpDepth(p.x, p.z, p);
+                const r = p.mass * 0.45;
+                const worldPos = new THREE.Vector3(p.x, wy + r * 2 + 8, p.z);
+                worldPos.project(camera);
+                const sx = (worldPos.x * 0.5 + 0.5) * window.innerWidth;
+                const sy = (-worldPos.y * 0.5 + 0.5) * window.innerHeight;
+                el.style.left = sx + 'px';
+                el.style.top = sy + 'px';
+                // Hide if behind camera
+                el.style.display = worldPos.z < 1 ? 'block' : 'none';
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  PHYSICS
+        // ═══════════════════════════════════════════════════════
+        const clock = new THREE.Clock();
+
+        function updatePhysics(dt) {
+            if (stage === 0 || stage === 1) {
+                const sf = stage === 1 ? speedFactor * 1.35 : speedFactor;
+                for (const p of planets) {
+                    if (p === sunObj || p === draggedPlanet || !p.primary) continue;
+                    if (p.w === undefined)
+                        p.w = Math.sqrt(G * p.primary.mass / Math.pow(Math.max(p.dist, 10), 3));
+                    p.angle += p.w * sf;
+                    const pos = geoPos(p.angle, p.dist, p.shape);
+                    p.x = p.primary.x + pos.x;
+                    p.z = p.primary.z + pos.y;
+                }
+                return;
+            }
+            if (stage === 2) return;
+
+            // Stage 3 hybrid N-body
+            for (const p of planets) {
+                if (p === sunObj || p.isDynamic || !p.primary) continue;
+                let trigger = (p === draggedPlanet);
+                if (!trigger && Math.abs(p.primary.mass - p.basePrimaryMass) / p.basePrimaryMass > 0.1) trigger = true;
+                if (!trigger) {
+                    const pp = G * p.primary.mass / Math.max(p.dist * p.dist, 1), th = pp * 0.05;
+                    for (const o of planets) {
+                        if (o === p || o === p.primary) continue;
+                        if (o.isOriginal && o.mass === o.initialMass) continue;
+                        const d = Math.max(Math.hypot(p.x - o.x, p.z - o.z), 5);
+                        if (G * o.mass / (d * d) > th) { trigger = true; break; }
+                    }
+                }
+                if (trigger) {
+                    p.isDynamic = true;
+                    const v = Math.sqrt(G * p.primary.mass / Math.max(p.dist, 10));
+                    p.vx = -Math.sin(p.angle) * v;
+                    p.vz = Math.cos(p.angle) * v;
+                }
+            }
+
+            for (let i = 0; i < planets.length; i++) {
+                const p1 = planets[i];
+                if (p1 === draggedPlanet || !p1.isDynamic) continue;
+                let ax = 0, az = 0;
+                for (let j = 0; j < planets.length; j++) {
+                    if (i === j) continue;
+                    const p2 = planets[j], dx = p2.x - p1.x, dz = p2.z - p1.z;
+                    const d = Math.max(Math.hypot(dx, dz), Math.max(p1.mass, p2.mass) / 2);
+                    const f = G * p2.mass / (d * d);
+                    ax += f * dx / d; az += f * dz / d;
+                }
+                p1.vx += ax * speedFactor; p1.vz += az * speedFactor;
+            }
+
+            const BOUND = 2600;
+            for (let i = planets.length - 1; i >= 0; i--) {
+                const p = planets[i];
+                if (p === draggedPlanet) continue;
+                if (!p.isDynamic && p.primary) {
+                    const w = Math.sqrt(G * p.primary.mass / Math.pow(Math.max(p.dist, 10), 3));
+                    p.angle += w * speedFactor;
+                    const pos = geoPos(p.angle, p.dist, p.shape);
+                    p.x = p.primary.x + pos.x; p.z = p.primary.z + pos.y;
+                } else if (p.isDynamic) {
+                    p.x += p.vx * speedFactor; p.z += p.vz * speedFactor;
+                    let best = p.primary, maxPull = -1;
+                    for (const o of planets) {
+                        if (o === p) continue;
+                        const d = Math.max(Math.hypot(p.x - o.x, p.z - o.z), 5);
+                        const pull = G * o.mass / (d * d);
+                        const vr = Math.hypot(p.vx - (o.vx || 0), p.vz - (o.vz || 0));
+                        if (vr < Math.sqrt(2 * G * o.mass / d) && pull > maxPull) { maxPull = pull; best = o; }
+                    }
+                    if (best && p.primary !== best) { p.primary = best; p.basePrimaryMass = best.mass; p.history = []; }
+                    if (p.primary) {
+                        const rx = p.x - p.primary.x, rz = p.z - p.primary.z;
+                        const last = p.history[p.history.length - 1];
+                        if (!last || Math.hypot(last.x - rx, last.z - rz) > 2) {
+                            p.history.push({ x: rx, z: rz });
+                            if (p.history.length > 250) p.history.shift();
+                        }
+                        p.dist = Math.hypot(rx, rz); p.angle = Math.atan2(rz, rx);
+                    }
+                }
+                if (Math.abs(p.x) > BOUND || Math.abs(p.z) > BOUND) {
+                    removePlanetFromScene(p); planets.splice(i, 1);
+                    lostPlanets.push(p); updateLostList();
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  DRAG — world-space ray intersection with horizontal plane
+        // ═══════════════════════════════════════════════════════
+        const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const dragPoint = new THREE.Vector3();
+        const prevDragPoint = new THREE.Vector3();
+        let dragActive = false;
+
+        function getWorldDragPoint(mx, my) {
+            mouse2d.set((mx / window.innerWidth) * 2 - 1, -(my / window.innerHeight) * 2 + 1);
+            raycaster.setFromCamera(mouse2d, camera);
+            raycaster.ray.intersectPlane(dragPlane, dragPoint);
+            return dragPoint.clone();
+        }
+
+        function handleDragging(mx, my) {
+            if (!draggedPlanet) return;
+            const wm = getWorldDragPoint(mx, my);
+            if (stage === 1) {
+                const angle = Math.atan2(wm.z - sunObj.z, wm.x - sunObj.x);
+                draggedPlanet.angle = angle;
+                const pos = geoPos(angle, draggedPlanet.dist, draggedPlanet.shape);
+                draggedPlanet.x = sunObj.x + pos.x; draggedPlanet.z = sunObj.z + pos.y;
+                draggedPlanet.w = Math.sqrt(G * sunObj.mass / Math.pow(Math.max(draggedPlanet.dist, 10), 3));
+            } else if (stage === 2) {
+                draggedPlanet.x = wm.x; draggedPlanet.z = wm.z;
+                draggedPlanet.dist = Math.hypot(wm.x - sunObj.x, wm.z - sunObj.z);
+                draggedPlanet.angle = Math.atan2(wm.z - sunObj.z, wm.x - sunObj.x);
+            } else if (stage === 3) {
+                const dx = wm.x - prevDragPoint.x, dz = wm.z - prevDragPoint.z;
+                if (draggedPlanet === sunObj) {
+                    movePlanetAndSatellites(sunObj, dx, dz);
+                } else if (selectedPlanets.length > 1 && selectedPlanets.includes(draggedPlanet)) {
+                    selectedPlanets.forEach(p => { p.x += dx; p.z += dz; p.isDynamic = true; p.history = []; });
+                } else if (draggedPlanet.primary) {
+                    const angle = Math.atan2(wm.z - draggedPlanet.primary.z, wm.x - draggedPlanet.primary.x);
+                    const nd = Math.max(Math.hypot(wm.x - draggedPlanet.primary.x, wm.z - draggedPlanet.primary.z), 10);
+                    draggedPlanet.x = wm.x; draggedPlanet.z = wm.z;
+                    draggedPlanet.dist = nd; draggedPlanet.angle = angle;
+                    const v = Math.sqrt(G * draggedPlanet.primary.mass / nd);
+                    draggedPlanet.vx = -Math.sin(angle) * v; draggedPlanet.vz = Math.cos(angle) * v;
+                    draggedPlanet.isDynamic = true; draggedPlanet.history = [];
+                }
+            }
+            prevDragPoint.copy(getWorldDragPoint(mx, my));
+        }
+
+        function movePlanetAndSatellites(p, dx, dz) {
+            p.x += dx; p.z += dz;
+            planets.forEach(s => { if (s.primary === p && s !== p) movePlanetAndSatellites(s, dx, dz); });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  HIT TEST — raycast against planet meshes
+        // ═══════════════════════════════════════════════════════
+        function hitTestPlanet(mx, my, excludeSun = false) {
+            mouse2d.set((mx / window.innerWidth) * 2 - 1, -(my / window.innerHeight) * 2 + 1);
+            raycaster.setFromCamera(mouse2d, camera);
+            const meshes = planets
+                .filter(p => !(excludeSun && p === sunObj))
+                .map(p => p.mesh);
+            const hits = raycaster.intersectObjects(meshes, false);
+            if (hits.length > 0) return hits[0].object.userData.planet;
+            return null;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  ESCAPE CHECK (Stage 2)
+        // ═══════════════════════════════════════════════════════
+        function checkStage2Escape(p) {
+            if (stage !== 2 || !p || p === sunObj) return;
+            const dist = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
+            if (dist > STAGE_2_ESCAPE_DISTANCE) {
+                const idx = planets.indexOf(p);
+                if (idx !== -1) planets.splice(idx, 1);
+                selectedPlanets = selectedPlanets.filter(s => s !== p);
+                removePlanetFromScene(p);
+                lostPlanets.push(p);
+                updateLostList();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  MOUSE / POINTER EVENTS
+        // ═══════════════════════════════════════════════════════
+        let mouseDownX = 0, mouseDownY = 0, mouseHasMoved = false;
+        let panStartX = 0, panStartY = 0;
+
+        renderer.domElement.addEventListener('mousedown', e => {
+            if (e.target !== renderer.domElement) return;
+            if (e.clientY < 88) return;
+            mouseDownX = e.clientX; mouseDownY = e.clientY; mouseHasMoved = false;
+
+            const excludeSun = (stage === 1 || stage === 2);
+            const hit = hitTestPlanet(e.clientX, e.clientY, excludeSun);
+
+            if (hit) {
+                if (stage === 1 && isPlaying) { showToast(); return; }
+                draggedPlanet = hit; isPanning = false; dragActive = true;
+                prevDragPoint.copy(getWorldDragPoint(e.clientX, e.clientY));
+
+                if (stage >= 1) {
+                    selectedPlanets = e.shiftKey
+                        ? [...new Set([...selectedPlanets, hit])]
+                        : [hit];
+                    refreshSelectionVisuals();
+                }
+                if (stage === 3) {
+                    updateCustomPanel(selectedPlanets[selectedPlanets.length - 1]);
+                    document.getElementById('custom-panel').style.visibility = 'visible';
+                }
+            } else {
+                draggedPlanet = null; isPanning = true;
+                panStartX = e.clientX; panStartY = e.clientY;
+                if (stage === 3) clearSelection();
+            }
+        });
+
+        renderer.domElement.addEventListener('mousemove', e => {
+            const dx = e.clientX - mouseDownX, dy = e.clientY - mouseDownY;
+            if (Math.hypot(dx, dy) > 3) mouseHasMoved = true;
+
+            // Cursor
+            const excludeSun = (stage === 1 || stage === 2);
+            const hit = hitTestPlanet(e.clientX, e.clientY, excludeSun);
+            const blockCursor = (stage === 1 && isPlaying);
+            renderer.domElement.style.cursor = (hit && !blockCursor) ? 'grab' : 'default';
+
+            if (dragActive && draggedPlanet) {
+                handleDragging(e.clientX, e.clientY);
+            } else if (isPanning) {
+                const ddx = e.clientX - panStartX, ddy = e.clientY - panStartY;
+                panStartX = e.clientX; panStartY = e.clientY;
+                // Pan: move camera target in world space
+                const right = new THREE.Vector3();
+                const up2 = new THREE.Vector3();
+                camera.getWorldDirection(up2);
+                right.crossVectors(up2, camera.up).normalize();
+                const panSpeed = camRadius * 0.001;
+                camX -= right.x * ddx * panSpeed;
+                camY += ddy * panSpeed * 0.4;
+                targetCamX = camX; targetCamY = camY;
+                autoFollow = false;
+            }
+        });
+
+        renderer.domElement.addEventListener('mouseup', e => {
+            if (stage === 2 && draggedPlanet) checkStage2Escape(draggedPlanet);
+            draggedPlanet = null; dragActive = false; isPanning = false;
+        });
+
+        renderer.domElement.addEventListener('dblclick', e => {
+            if (stage !== 3) return;
+            if (isPlaying) { showToast(); return; }
+            const hit = hitTestPlanet(e.clientX, e.clientY, false);
+            if (hit) return;
+            const wm = getWorldDragPoint(e.clientX, e.clientY);
+            const d = Math.hypot(wm.x - sunObj.x, wm.z - sunObj.z);
+            const cols = ['#ff5500', '#00ccff', '#ff44ff', '#44ff88', '#ffdd00', '#ff99aa'];
+            const c = cols[Math.floor(Math.random() * cols.length)];
+            const name = 'Planet ' + planets.length;
+            addPlanet(wm.x, wm.z, 40, c, name, 'circle', d, false);
+            const np = planets[planets.length - 1];
+            selectedPlanets = [np]; refreshSelectionVisuals();
+            updateCustomPanel(np);
+            document.getElementById('custom-panel').style.visibility = 'visible';
+        });
+
+        renderer.domElement.addEventListener('wheel', e => {
+            targetRadius = Math.max(300, Math.min(6000, targetRadius + e.deltaY * 1.2));
+            document.getElementById('zoomSlider').value =
+                100 - (targetRadius - 300) / (6000 - 300) * 80;
+            e.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ═══════════════════════════════════════════════════════
+        //  CAMERA UI
+        // ═══════════════════════════════════════════════════════
+        function updateCamera() {
+            targetTheta = document.getElementById('orbitSlider').value * Math.PI / 180;
+            targetPhi = Math.max(0.15, document.getElementById('tiltSlider').value * Math.PI / 100 + 0.15);
+            const zv = document.getElementById('zoomSlider').value;
+            targetRadius = 300 + (100 - zv) / 80 * (6000 - 300);
+        }
+
+        function resetCamera() {
+            targetTheta = 0; targetPhi = 1.15; targetRadius = 1800;
+            camX = 0; camY = 0; targetCamX = 0; targetCamY = 0;
+            autoFollow = true;
+            document.getElementById('orbitSlider').value = 0;
+            document.getElementById('tiltSlider').value = 55;
+            document.getElementById('zoomSlider').value = 60;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  STAGE MANAGEMENT
+        // ═══════════════════════════════════════════════════════
+        function clearScene() {
+            for (const p of planets) removePlanetFromScene(p);
+            for (const p of lostPlanets) removePlanetFromScene(p);
+            // Hide all labels
+            for (const k in labelEls) labelEls[k].style.display = 'none';
+            planets = []; lostPlanets = []; selectedPlanets = [];
+            sunObj = null;
+        }
+
+        function setStage(s) {
+            stage = s;
+            clearScene();
+            updateLostList();
+            speedFactor = 0; autoFollow = true; draggedPlanet = null; isPanning = false;
+            isPlaying = false; dragActive = false;
+
+            const $ = id => document.getElementById(id);
+            $('landing-hub').style.display = s === 0 ? 'block' : 'none';
+            $('ui-header').style.display = s === 0 ? 'none' : 'block';
+            $('cockpit').style.visibility = s === 0 ? 'hidden' : 'visible';
+            $('custom-panel').style.visibility = s === 3 ? 'visible' : 'hidden';
+            $('hint').style.display = s === 3 ? 'block' : 'none';
+            $('hint-s1').style.display = s === 1 ? 'block' : 'none';
+            $('btn-play').style.display = (s === 1 || s === 3) ? 'inline-block' : 'none';
+            $('btn-play').innerText = '▶ Play';
+            $('escaped-box').style.visibility = 'hidden';
+
+            // Reset camera
+            resetCamera();
+
+            if (s === 0) {
+                isPlaying = true;
+                sunObj = makeSun(200); planets.push(sunObj);
+                addPlanet(170, 0, 50, '#00eeff', 'P1', 'circle', 170, true);
+                addPlanet(-300, 0, 65, '#ff44ff', 'P2', 'circle', 300, true);
+                return;
+            }
+
+            sunObj = makeSun(180); planets.push(sunObj);
+            SOLAR.forEach((d, i) => {
+                const a = (Math.PI * 2 / SOLAR.length) * i;
+                addPlanet(Math.cos(a) * d.r, Math.sin(a) * d.r, d.m,
+                    hexColor(d.c), d.name, 'circle', d.r, true);
+            });
+
+            if (s === 1) {
+                // Wider view showing more of the solar system
+                targetRadius = 2200; targetPhi = 1.32; targetCamX = -160; targetCamY = 0;
+                camX = -160; autoFollow = false;
+                document.getElementById('tiltSlider').value = 68;
+                document.getElementById('zoomSlider').value = 42;
+            }
+
+            if (s === 3) {
+                updateCustomPanel(sunObj);
+                selectedPlanets = [sunObj];
+                refreshSelectionVisuals();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  PLAY / PAUSE
+        // ═══════════════════════════════════════════════════════
+        function togglePlay() {
+            const was = isPlaying;
+            isPlaying = !isPlaying;
+            document.getElementById('btn-play').innerText = isPlaying ? '⏸ Pause' : '▶ Play';
+            ['massSlider', 'shapeSelect', 'colorPicker', 'delete-btn'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.disabled = isPlaying;
+            });
+            if (!was && isPlaying) {
+                speedFactor = 0;
+                planets.forEach(p => {
+                    if (p === sunObj || !p.primary) return;
+                    p.dist = Math.max(Math.hypot(p.x - p.primary.x, p.z - p.primary.z), 10);
+                    p.angle = Math.atan2(p.z - p.primary.z, p.x - p.primary.x);
+                    p.w = Math.sqrt(G * p.primary.mass / Math.pow(p.dist, 3));
+                    if (stage === 3) {
+                        const v = Math.sqrt(G * p.primary.mass / p.dist);
+                        p.vx = -Math.sin(p.angle) * v; p.vz = Math.cos(p.angle) * v; p.history = [];
+                    }
+                });
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  UI HELPERS
+        // ═══════════════════════════════════════════════════════
+        function updateTarget() {
+            if (!selectedPlanets.length) return;
+            const m = Number(document.getElementById('massSlider').value);
+            const c = document.getElementById('colorPicker').value;
+            const sh = document.getElementById('shapeSelect').value;
+            selectedPlanets.forEach(p => {
+                p.mass = m; p.color = c;
+                if (p !== sunObj) p.shape = sh;
+                const col = threeColor(c);
+                p.mesh.material.color.set(col);
+                p.mesh.material.emissive.set(col.clone().multiplyScalar(p === sunObj ? 0.6 : 0.25));
+                // Rebuild glow
+                scene.remove(p.glow);
+                p.glow = makeGlowSprite(c, m * 0.45);
+                scene.add(p.glow);
+                // Resize mesh geometry
+                p.mesh.geometry.dispose();
+                p.mesh.geometry = new THREE.SphereGeometry(m * 0.45, 32, 24);
+                // Rebuild orbit ring
+                if (p.orbitRing && p !== sunObj) {
+                    scene.remove(p.orbitRing);
+                    const rGeo = buildOrbitRingGeo(p.dist, p.shape);
+                    const rMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: p.selRing.visible ? 0.65 : 0.12 });
+                    p.orbitRing = new THREE.LineLoop(rGeo, rMat);
+                    scene.add(p.orbitRing);
+                }
+            });
+            updateCustomPanel(selectedPlanets[selectedPlanets.length - 1]);
+        }
+
+        function deleteTarget() {
+            selectedPlanets.forEach(p => {
+                if (p === sunObj) return;
+                removePlanetFromScene(p);
+                planets = planets.filter(pl => pl !== p);
+            });
+            selectedPlanets = [sunObj]; refreshSelectionVisuals();
+            updateCustomPanel(sunObj);
+        }
+
+        function updateCustomPanel(p) {
+            document.getElementById('target-name').innerText = p.name;
+            document.getElementById('massSlider').value = p.mass;
+            document.getElementById('shapeSelect').value = p.shape;
+            document.getElementById('colorPicker').value = p.color;
+            document.getElementById('shape-label').style.display = p === sunObj ? 'none' : 'flex';
+            document.getElementById('delete-btn').style.display = p === sunObj ? 'none' : 'inline-block';
+        }
+
+        function clearSelection() {
+            selectedPlanets = [];
+            refreshSelectionVisuals();
+            document.getElementById('custom-panel').style.visibility = 'hidden';
+        }
+
+        function showToast() {
+            const t = document.getElementById('toast');
+            t.style.visibility = 'visible'; t.style.opacity = '1';
+            setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.visibility = 'hidden'; }, 300); }, 2000);
+        }
+
+        function updateLostList() {
+            const list = document.getElementById('lost-list');
+            list.innerHTML = '';
+            lostPlanets.forEach(p => {
+                const d = document.createElement('div');
+                d.className = 'escaped-item'; d.innerText = p.name + ' (Lost)';
+                list.appendChild(d);
+            });
+            document.getElementById('escaped-box').style.visibility = lostPlanets.length ? 'visible' : 'hidden';
+        }
+
+        function restoreSystem() {
+            isPlaying = false; speedFactor = 0;
+            document.getElementById('btn-play').innerText = '▶ Play';
+            lostPlanets.forEach(p => {
+                p.mass = p.initialMass; p.color = p.initialColor; p.shape = p.initialShape;
+                p.dist = p.initialR; p.angle = p.initialAngle;
+                p.x = sunObj.x + Math.cos(p.angle) * p.dist;
+                p.z = sunObj.z + Math.sin(p.angle) * p.dist;
+                const v = Math.sqrt(G * sunObj.mass / p.dist);
+                p.vx = -Math.sin(p.angle) * v; p.vz = Math.cos(p.angle) * v;
+                p.primary = sunObj; p.basePrimaryMass = sunObj.mass;
+                p.isDynamic = false; p.history = [];
+                scene.add(p.mesh); scene.add(p.glow);
+                if (p.orbitRing) scene.add(p.orbitRing);
+                if (labelEls[p.name]) labelEls[p.name].style.display = 'block';
+                planets.push(p);
+            });
+            lostPlanets = [];
+            updateLostList();
+        }
+
+        document.oncontextmenu = () => false;
+
+        // ═══════════════════════════════════════════════════════
+        //  RENDER LOOP
+        // ═══════════════════════════════════════════════════════
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            if (isPlaying) {
+                speedFactor = Math.min(1.0, speedFactor + dt / 3);
+                updatePhysics(dt);
+            }
+
+            // Smooth camera lerp
+            camTheta += (targetTheta - camTheta) * 0.08;
+            camPhi += (targetPhi - camPhi) * 0.08;
+            camRadius += (targetRadius - camRadius) * 0.08;
+
+            updateGrid();
+
+            // Sync all planet meshes to world positions
+            for (const p of planets) {
+                if (autoFollow && p === sunObj) {
+                    targetCamX = p.x; targetCamY = 0;
+                }
+                syncMeshPosition(p);
+                updateOrbitRing(p);
+            }
+            // Sun light follows sun
+            if (sunObj) {
+                const wy = warpDepth(sunObj.x, sunObj.z, sunObj);
+                sunLight.position.set(sunObj.x, wy + sunObj.mass * 0.45 + 50, sunObj.z);
+            }
+
+            camX += (targetCamX - camX) * 0.08;
+
+            updateCameraPosition();
+            updateLabels();
+
+            renderer.render(scene, camera);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  BOOT
+        // ═══════════════════════════════════════════════════════
+        setStage(0);
+        animate();
+    </script>
+</body>
+
+</html>
