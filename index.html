@@ -477,6 +477,7 @@
         <p id="hint" style="display:none">Double-click / double-tap empty space to add a planet · Shift+click to
             multi-select</p>
         <p id="hint-s1" style="display:none">⏸ Drag planets along their orbit · then press Play to animate</p>
+        <p id="hint-s2" style="display:none">⏸ Drag planets · Press Play to simulate gravity</p>
     </div>
 
     <div id="custom-panel">
@@ -539,7 +540,10 @@
         <div id="lost-list"></div>
         <button onclick="restoreSystem()"
             style="background:#ff4444;border:none;border-radius:5px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:8px;min-height:40px">↩
-            Restore</button>
+            Restore All</button>
+        <button id="btn-reset-s2" onclick="resetStage2Planets()"
+            style="display:none;background:#ff8800;border:none;border-radius:5px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:6px;min-height:40px">↺
+            Reset Stage 2</button>
     </div>
 
     <div id="labels"></div>
@@ -575,7 +579,15 @@
         //  CONSTANTS
         // ═══════════════════════════════════════════════════
         const G = 5;
-        const STAGE_2_ESCAPE_DISTANCE = 1200;
+        const PLANET_GRAVITY_MULT = 0.08;
+        const MIN_PHYSICS_DISTANCE = 5;
+        const COLLAPSE_SAFETY_MARGIN = 8;
+        const COLLISION_PADDING = 8;
+        const STAGE_2_TIME_SCALE = 24;
+        const STAGE_2_SUBSTEPS = 6;
+        const STAGE2_ORBIT_MULT_STRENGTH = 0.12;
+        const MAX_TRAIL_POINTS_DESKTOP = 250;
+        const MAX_TRAIL_POINTS_MOBILE = 150;
         const GRID_SIZE = 2600;
         const GRID_RES = 14;
         const GRID_SEGS = Math.floor(GRID_SIZE * 2 / GRID_RES);
@@ -583,6 +595,10 @@
         const BASE_CAMERA_RADIUS = 2400;
 
         const SURFACE_OFFSET = 14;
+        let s2FrameCounter = 0;
+        let lastStage2WarningTime = 0;
+
+        function isMobileLayout() { return window.innerWidth < 768; }
 
         function scaledOrbitDistance(d) { return Math.sqrt(d) * ORBIT_SCALE; }
 
@@ -1074,7 +1090,24 @@
             if (!p.orbitRing || p === sunObj || !p.primary) return;
             if (!p._orbitDirty) return;
             p.orbitRing.geometry.dispose();
-            p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary, p);
+
+            if ((stage === 2 || stage === 3) && isPlaying && p.history && p.history.length > 1) {
+                const pts = [];
+                const cx = p.primary.x, cz = p.primary.z;
+                const planetRadius = p.mass * 0.45;
+                for (const pt of p.history) {
+                    const wx = cx + pt.x, wz = cz + pt.z;
+                    const wy = warpDepth(wx, wz) + planetRadius + SURFACE_OFFSET;
+                    pts.push(new THREE.Vector3(wx, wy, wz));
+                }
+                const wx = p.x, wz = p.z;
+                const wy = warpDepth(wx, wz) + planetRadius + SURFACE_OFFSET;
+                pts.push(new THREE.Vector3(wx, wy, wz));
+                p.orbitRing.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+            } else {
+                p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary, p);
+            }
+
             p.orbitRing.position.set(0, 0, 0);
             p.orbitRing.material.opacity = (p.selRing && p.selRing.visible) ? 0.65 : 0.18;
             p._orbitDirty = false;
@@ -1403,7 +1436,7 @@
         // ═══════════════════════════════════════════════════
         const clock = new THREE.Clock();
 
-        function updatePhysics() {
+        function updatePhysics(frameDt) {
             if (stage === 0 || stage === 1) {
                 const sf = stage === 1 ? speedFactor * 1.35 : speedFactor;
                 let anyMoved = false;
@@ -1421,7 +1454,12 @@
                 if (anyMoved) markAllOrbitsDirty();
                 return;
             }
-            if (stage === 2) return;
+
+            if (stage === 2) {
+                if (!isPlaying) return;
+                updateStage2Physics(frameDt);
+                return;
+            }
 
             // Stage 3 — N-body
             for (const p of planets) {
@@ -1524,10 +1562,69 @@
                 draggedPlanet.w = Math.sqrt(G * sunObj.mass / Math.pow(Math.max(draggedPlanet.dist, 10), 3));
                 markAllOrbitsDirty();
             } else if (stage === 2) {
-                draggedPlanet.x = wm.x; draggedPlanet.z = wm.z;
-                draggedPlanet.dist = Math.hypot(wm.x - sunObj.x, wm.z - sunObj.z);
-                draggedPlanet.angle = Math.atan2(wm.z - sunObj.z, wm.x - sunObj.x);
-                markOrbitDirty(draggedPlanet);
+                const proposed_x = wm.x, proposed_z = wm.z;
+
+                if (isSafeStage2Position(draggedPlanet, proposed_x, proposed_z)) {
+                    draggedPlanet.x = proposed_x; draggedPlanet.z = proposed_z;
+                    draggedPlanet.stage2LastValidX = proposed_x;
+                    draggedPlanet.stage2LastValidZ = proposed_z;
+                    const r = Math.max(Math.hypot(proposed_x - sunObj.x, proposed_z - sunObj.z), 1);
+                    draggedPlanet.dist = r;
+                    draggedPlanet.angle = Math.atan2(proposed_z - sunObj.z, proposed_x - sunObj.x);
+                    markOrbitDirty(draggedPlanet);
+
+                    // Visual feedback
+                    const sunRadius = sunObj.mass * 0.45;
+                    const pRadius = draggedPlanet.mass * 0.45;
+                    const collapseDistance = sunRadius + pRadius + COLLAPSE_SAFETY_MARGIN;
+                    const vCircular = Math.sqrt(G * sunObj.mass / r);
+                    const rawMult = draggedPlanet.orbitMult || 1.0;
+                    const softenedMult = THREE.MathUtils.clamp(1 + (rawMult - 1) * STAGE2_ORBIT_MULT_STRENGTH, 0.85, 1.08);
+                    const v = vCircular * softenedMult;
+                    const vEscape = Math.sqrt(2 * G * sunObj.mass / r);
+                    const escapeRatio = v / vEscape;
+
+                    if (r <= collapseDistance + 20) {
+                        draggedPlanet.glow.material.color.setHex(0xff4400);
+                        if (draggedPlanet.orbitRing) draggedPlanet.orbitRing.material.color.setHex(0xff4400);
+                        if (labelEls[draggedPlanet.name]) {
+                            labelEls[draggedPlanet.name].innerText = 'May collapse on Play';
+                            labelEls[draggedPlanet.name].style.color = '#ff4444';
+                        }
+                        showStage2Warning('May collapse into the Sun on Play.');
+                    } else if (escapeRatio >= 0.96) {
+                        draggedPlanet.glow.material.color.setHex(0xff0000);
+                        if (draggedPlanet.orbitRing) draggedPlanet.orbitRing.material.color.setHex(0xff0000);
+                        if (labelEls[draggedPlanet.name]) {
+                            labelEls[draggedPlanet.name].innerText = 'May escape on Play';
+                            labelEls[draggedPlanet.name].style.color = '#ff4444';
+                        }
+                        showStage2Warning('May escape on Play.');
+                    } else if (escapeRatio >= 0.82) {
+                        draggedPlanet.glow.material.color.setHex(0xffaa00);
+                        if (draggedPlanet.orbitRing) draggedPlanet.orbitRing.material.color.setHex(0xffaa00);
+                        if (labelEls[draggedPlanet.name]) {
+                            labelEls[draggedPlanet.name].innerText = 'Wide orbit';
+                            labelEls[draggedPlanet.name].style.color = '#ffaa00';
+                        }
+                    } else {
+                        draggedPlanet.glow.material.color.setHex(0xffffff);
+                        if (draggedPlanet.orbitRing) draggedPlanet.orbitRing.material.color.setHex(0xffffff);
+                        if (labelEls[draggedPlanet.name]) {
+                            labelEls[draggedPlanet.name].innerText = draggedPlanet.name;
+                            labelEls[draggedPlanet.name].style.color = 'white';
+                        }
+                        const capHost = getPossibleStage2CaptureHost(draggedPlanet);
+                        if (capHost) showStage2Warning('Possible ' + capHost.name + ' capture on Play.');
+                    }
+                } else {
+                    // Revert to last valid
+                    if (draggedPlanet.stage2LastValidX !== undefined) {
+                        draggedPlanet.x = draggedPlanet.stage2LastValidX;
+                        draggedPlanet.z = draggedPlanet.stage2LastValidZ;
+                    }
+                    showStage2Warning('Planets cannot overlap.');
+                }
             } else if (stage === 3) {
                 const dx = wm.x - prevDragPoint.x, dz = wm.z - prevDragPoint.z;
                 if (draggedPlanet === sunObj) {
@@ -1557,17 +1654,437 @@
             planets.forEach(s => { if (s.primary === p && s !== p) movePlanetAndSatellites(s, dx, dz); });
         }
 
-        function checkStage2Escape(p) {
-            if (stage !== 2 || !p || p === sunObj) return;
-            if (Math.hypot(p.x - sunObj.x, p.z - sunObj.z) > STAGE_2_ESCAPE_DISTANCE) {
-                const idx = planets.indexOf(p);
-                if (idx !== -1) planets.splice(idx, 1);
-                selectedPlanets = selectedPlanets.filter(s => s !== p);
-                removePlanetFromScene(p, false);
-                lostPlanets.push(p);
-                updateLostList();
+        function triggerBlast(x, z, radius) {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255, 255, 200, 1)');
+            grad.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+
+            const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+            const sprite = new THREE.Sprite(mat);
+            const wy = warpDepth(x, z);
+            sprite.position.set(x, wy + radius + 14, z);
+            sprite.scale.set(radius * 3, radius * 3, 1);
+            scene.add(sprite);
+
+            let scale = radius * 3;
+            let opacity = 1.0;
+            const fade = setInterval(() => {
+                scale *= 1.1;
+                opacity -= 0.05;
+                sprite.scale.set(scale, scale, 1);
+                sprite.material.opacity = opacity;
+                if (opacity <= 0) {
+                    clearInterval(fade);
+                    scene.remove(sprite);
+                    sprite.material.map.dispose();
+                    sprite.material.dispose();
+                }
+            }, 33);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  STAGE 2 HELPERS
+        // ═══════════════════════════════════════════════════
+
+        function initializeStage2Velocity(p) {
+            if (!p || p === sunObj || !sunObj) return;
+            const rx = p.x - sunObj.x;
+            const rz = p.z - sunObj.z;
+            const r = Math.max(Math.hypot(rx, rz), 1);
+            const angle = Math.atan2(rz, rx);
+            const vCircular = Math.sqrt(G * sunObj.mass / r);
+            const rawMult = p.orbitMult || 1.0;
+            const softenedMult = THREE.MathUtils.clamp(
+                1 + (rawMult - 1) * STAGE2_ORBIT_MULT_STRENGTH, 0.85, 1.08
+            );
+            const vEscape = Math.sqrt(2 * G * sunObj.mass / r);
+            const v = Math.min(vCircular * softenedMult, vEscape * 0.96);
+            p.vx = -Math.sin(angle) * v;
+            p.vz = Math.cos(angle) * v;
+            p.dist = r;
+            p.angle = angle;
+            p.primary = sunObj;
+            p.captureHost = null;
+            p.captureStatus = null;
+            p.stage2VelocityInitialized = true;
+        }
+
+        function initializeAllStage2Velocities() {
+            for (const p of planets) {
+                if (p !== sunObj) initializeStage2Velocity(p);
             }
         }
+
+        function computeStage2Acceleration(p) {
+            let ax = 0, az = 0;
+            for (const other of planets) {
+                if (other === p) continue;
+                const dx = other.x - p.x;
+                const dz = other.z - p.z;
+                let r = Math.hypot(dx, dz);
+                r = Math.max(r, MIN_PHYSICS_DISTANCE);
+                const rSq = r * r;
+                let effectiveMass = other.mass;
+                if (other !== sunObj) effectiveMass *= PLANET_GRAVITY_MULT;
+                const accel = G * effectiveMass / rSq;
+                ax += accel * dx / r;
+                az += accel * dz / r;
+            }
+            return { ax, az };
+        }
+
+        function isSafeStage2Position(p, x, z) {
+            if (!p || p === sunObj) return false;
+            const pRadius = p.mass * 0.45;
+            const sunRadius = sunObj.mass * 0.45;
+            const distToSun = Math.hypot(x - sunObj.x, z - sunObj.z);
+            if (distToSun < sunRadius + pRadius * 0.4) return false;
+            for (const other of planets) {
+                if (other === p || other === sunObj) continue;
+                const otherRadius = other.mass * 0.45;
+                if (Math.hypot(x - other.x, z - other.z) < pRadius + otherRadius + COLLISION_PADDING) return false;
+            }
+            return true;
+        }
+
+        function isEscapingFromSun(p) {
+            const rx = p.x - sunObj.x;
+            const rz = p.z - sunObj.z;
+            const r = Math.max(Math.hypot(rx, rz), 1);
+            const speed = Math.hypot(p.vx || 0, p.vz || 0);
+            const specificEnergy = 0.5 * speed * speed - (G * sunObj.mass / r);
+            const radialVelocity = (rx * p.vx + rz * p.vz) / r;
+            return specificEnergy >= 0 && radialVelocity > 0;
+        }
+
+        function checkStage2Capture(p) {
+            if (!p || p === sunObj) return;
+            let bestHost = null, bestEnergy = Infinity;
+            for (const host of planets) {
+                if (host === p || host === sunObj) continue;
+                if (host.name !== 'Jupiter' && host.name !== 'Saturn') continue;
+                const hostDistFromSun = Math.max(Math.hypot(host.x - sunObj.x, host.z - sunObj.z), 1);
+                const hillRadius = hostDistFromSun * Math.cbrt((host.mass * PLANET_GRAVITY_MULT) / (3 * sunObj.mass));
+                const rx = p.x - host.x, rz = p.z - host.z;
+                const rHost = Math.max(Math.hypot(rx, rz), 1);
+                if (rHost > hillRadius) continue;
+                const rvx = (p.vx || 0) - (host.vx || 0);
+                const rvz = (p.vz || 0) - (host.vz || 0);
+                const relativeSpeed = Math.hypot(rvx, rvz);
+                const muHost = G * host.mass * PLANET_GRAVITY_MULT;
+                const energyHost = 0.5 * relativeSpeed * relativeSpeed - (muHost / rHost);
+                if (energyHost < 0 && energyHost < bestEnergy) { bestEnergy = energyHost; bestHost = host; }
+            }
+            if (bestHost) {
+                if (p.captureHost !== bestHost) {
+                    p.captureHost = bestHost;
+                    p.primary = bestHost;
+                    p.captureStatus = 'Captured by ' + bestHost.name;
+                    showToast(p.name + ' captured by ' + bestHost.name + '.');
+                }
+            } else if (p.captureHost) {
+                showToast(p.name + ' released from ' + p.captureHost.name + '.');
+                p.captureHost = null; p.captureStatus = null; p.primary = sunObj;
+            }
+        }
+
+        function getPossibleStage2CaptureHost(p) {
+            if (!p || p === sunObj) return null;
+            for (const host of planets) {
+                if (host === p || host === sunObj) continue;
+                if (host.name !== 'Jupiter' && host.name !== 'Saturn') continue;
+                const hostDistFromSun = Math.max(Math.hypot(host.x - sunObj.x, host.z - sunObj.z), 1);
+                const hillRadius = hostDistFromSun * Math.cbrt((host.mass * PLANET_GRAVITY_MULT) / (3 * sunObj.mass));
+                const rHost = Math.hypot(p.x - host.x, p.z - host.z);
+                if (rHost < hillRadius * 1.5) return host;
+            }
+            return null;
+        }
+
+        function pauseStage2Simulation() {
+            if (stage !== 2) return;
+            isPlaying = false; speedFactor = 0;
+            const btn = document.getElementById('btn-play');
+            if (btn) btn.innerText = '▶ Play';
+        }
+
+        function removePlanetToLostList(p, status) {
+            p.lostStatus = status || 'Lost';
+            removePlanetFromScene(p, false);
+            const idx = planets.indexOf(p);
+            if (idx !== -1) planets.splice(idx, 1);
+            selectedPlanets = selectedPlanets.filter(s => s !== p);
+            lostPlanets.push(p);
+            updateLostList();
+        }
+
+        function processStage2Escape(p) {
+            if (!planets.includes(p)) return;
+            removePlanetToLostList(p, 'Escaped');
+            showToast(p.name + " escaped the Sun's gravity.");
+        }
+
+        function processStage2Collapse(p) {
+            if (!planets.includes(p)) return;
+            triggerBlast(p.x, p.z, p.mass * 0.45);
+            removePlanetToLostList(p, 'Collapsed into Sun');
+            showToast(p.name + ' collapsed into the Sun.');
+        }
+
+        function showStage2Warning(message) {
+            const now = Date.now();
+            if (now - lastStage2WarningTime < 700) return;
+            lastStage2WarningTime = now;
+            showToast(message);
+        }
+
+        function updateStage2PlacementWarnings(p) {
+            if (!p || p === sunObj || stage !== 2 || isPlaying) return;
+            const r = Math.max(Math.hypot(p.x - sunObj.x, p.z - sunObj.z), 1);
+            const sunRadius = sunObj.mass * 0.45;
+            const pRadius = p.mass * 0.45;
+            const collapseDistance = sunRadius + pRadius + COLLAPSE_SAFETY_MARGIN;
+            if (r <= collapseDistance + 20) {
+                showStage2Warning('May collapse into the Sun on Play.');
+                return;
+            }
+            const vCircular = Math.sqrt(G * sunObj.mass / r);
+            const rawMult = p.orbitMult || 1.0;
+            const softenedMult = THREE.MathUtils.clamp(1 + (rawMult - 1) * STAGE2_ORBIT_MULT_STRENGTH, 0.85, 1.08);
+            const v = vCircular * softenedMult;
+            const vEscape = Math.sqrt(2 * G * sunObj.mass / r);
+            const escapeRatio = v / vEscape;
+            if (escapeRatio >= 0.96) {
+                showStage2Warning('May escape on Play.');
+                return;
+            }
+            const capHost = getPossibleStage2CaptureHost(p);
+            if (capHost) showStage2Warning('Possible ' + capHost.name + ' capture on Play.');
+        }
+
+        function detectStage2PlanetCollision() {
+            const active = planets.filter(p => p !== sunObj);
+            for (let i = 0; i < active.length; i++) {
+                for (let j = i + 1; j < active.length; j++) {
+                    const a = active[i], b = active[j];
+                    const d = Math.hypot(a.x - b.x, a.z - b.z);
+                    const minD = (a.mass * 0.45) + (b.mass * 0.45) + COLLISION_PADDING;
+                    if (d <= minD) {
+                        if (a.stage2LastValidX !== undefined) { a.x = a.stage2LastValidX; a.z = a.stage2LastValidZ; }
+                        if (b.stage2LastValidX !== undefined) { b.x = b.stage2LastValidX; b.z = b.stage2LastValidZ; }
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function updateStage2Physics(frameDt) {
+            const rawDt = Math.min(frameDt || 1 / 60, 0.033);
+            const simDt = rawDt * STAGE_2_TIME_SCALE;
+            const stepDt = simDt / STAGE_2_SUBSTEPS;
+            s2FrameCounter++;
+
+            for (let step = 0; step < STAGE_2_SUBSTEPS; step++) {
+                const activePlanets = planets.filter(p => p !== sunObj);
+
+                // Pass 1: compute accelerations from current positions
+                const accels = new Map();
+                for (const p of activePlanets) {
+                    accels.set(p, computeStage2Acceleration(p));
+                }
+
+                // Pass 2: integrate velocity and position
+                for (const p of activePlanets) {
+                    const a = accels.get(p);
+                    if (!a) continue;
+                    p.vx += a.ax * stepDt;
+                    p.vz += a.az * stepDt;
+                    p.x += p.vx * stepDt;
+                    p.z += p.vz * stepDt;
+                }
+
+                // Pass 3: checks — collapse, capture, escape (mutates planets array)
+                for (let i = planets.length - 1; i >= 0; i--) {
+                    const p = planets[i];
+                    if (!p || p === sunObj) continue;
+
+                    // Collapse into Sun
+                    const sunRadius = sunObj.mass * 0.45;
+                    const pRadius = p.mass * 0.45;
+                    const collapseDistance = sunRadius + pRadius + COLLAPSE_SAFETY_MARGIN;
+                    const rToSun = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
+                    if (rToSun <= collapseDistance) {
+                        processStage2Collapse(p);
+                        continue;
+                    }
+
+                    // Capture by Jupiter/Saturn
+                    checkStage2Capture(p);
+
+                    // Escape from Sun (debounced)
+                    if (!p.captureHost) {
+                        if (isEscapingFromSun(p)) {
+                            p.escapeFrames = (p.escapeFrames || 0) + 1;
+                        } else {
+                            p.escapeFrames = 0;
+                        }
+                        if (p.escapeFrames > 30) {
+                            processStage2Escape(p);
+                            continue;
+                        }
+                    }
+                }
+
+                // Planet-to-planet collision
+                if (detectStage2PlanetCollision()) {
+                    pauseStage2Simulation();
+                    showToast('Planet collision detected. Pause and reposition.');
+                    return;
+                }
+            }
+
+            // Update trails and orbit ring markers after all substeps
+            const maxTrailPoints = isMobileLayout() ? MAX_TRAIL_POINTS_MOBILE : MAX_TRAIL_POINTS_DESKTOP;
+            for (const p of planets) {
+                if (p === sunObj || !planets.includes(p)) continue;
+
+                const primary = p.captureHost || sunObj;
+                p.primary = primary;
+                const rx = p.x - primary.x;
+                const rz = p.z - primary.z;
+                p.dist = Math.hypot(rx, rz);
+                p.angle = Math.atan2(rz, rx);
+                p.stage2LastValidX = p.x;
+                p.stage2LastValidZ = p.z;
+
+                const last = p.history[p.history.length - 1];
+                if (!last || Math.hypot(last.x - rx, last.z - rz) > 3) {
+                    p.history.push({ x: rx, z: rz });
+                    if (p.history.length > maxTrailPoints) p.history.shift();
+                }
+
+                if (s2FrameCounter % 3 === 0) markOrbitDirty(p);
+            }
+
+            if (s2FrameCounter % 6 === 0) updateGrid();
+        }
+
+        function findSafeRestorePosition(p) {
+            const r = p.initialR || p.dist || 200;
+            const baseAngle = Number.isFinite(p.initialAngle) ? p.initialAngle : 0;
+            const attempts = 72;
+            for (let i = 0; i < attempts; i++) {
+                const angle = baseAngle + (i * Math.PI * 2 / attempts);
+                const x = sunObj.x + Math.cos(angle) * r;
+                const z = sunObj.z + Math.sin(angle) * r;
+                if (isSafeStage2Position(p, x, z)) return { x, z, angle };
+            }
+            return null;
+        }
+
+        function restoreSinglePlanet(index) {
+            const p = lostPlanets[index];
+            if (!p || !sunObj) return;
+            const safe = findSafeRestorePosition(p);
+            if (!safe) { showToast('No safe restore position available.'); return; }
+            p.x = safe.x; p.z = safe.z; p.angle = safe.angle;
+            p.dist = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
+            p.history = []; p.escapeFrames = 0;
+            p.lostStatus = null; p.captureHost = null; p.captureStatus = null;
+            p.primary = sunObj;
+            p.stage2LastValidX = p.x; p.stage2LastValidZ = p.z;
+            recreatePlanetExtrasIfMissing(p);
+            scene.add(p.mesh); scene.add(p.glow);
+            if (p.orbitRing) scene.add(p.orbitRing);
+            if (p.extras && p.extras.ring && !scene.children.includes(p.extras.ring)) scene.add(p.extras.ring);
+            if (labelEls[p.name]) labelEls[p.name].style.display = 'block';
+            planets.push(p);
+            lostPlanets.splice(index, 1);
+            initializeStage2Velocity(p);
+            syncMeshPosition(p);
+            markOrbitDirty(p);
+            updateOrbitRing(p);
+            updateLostList();
+        }
+
+        function resetStage2Planets() {
+            if (stage !== 2) return;
+            pauseStage2Simulation();
+
+            // Restore all lost planets first
+            const allPlanets = [...planets, ...lostPlanets];
+            // Remove lost from scene if already removed
+            for (const p of lostPlanets) {
+                if (planets.includes(p)) continue;
+                // re-add to scene temporarily; we'll sync below
+            }
+            lostPlanets = [];
+
+            // Reset all non-sun planets to initial positions using SOLAR data
+            const solarByName = {};
+            SOLAR.forEach((d, i) => {
+                const a = (Math.PI * 2 / SOLAR.length) * i;
+                solarByName[d.name] = { r: d.r, angle: a };
+            });
+
+            for (const p of allPlanets) {
+                if (p === sunObj) continue;
+                const solarDef = solarByName[p.name];
+                if (solarDef) {
+                    p.dist = solarDef.r;
+                    p.angle = solarDef.angle;
+                } else {
+                    p.dist = p.initialR || p.dist || 200;
+                    p.angle = p.initialAngle || 0;
+                }
+                p.x = sunObj.x + Math.cos(p.angle) * p.dist;
+                p.z = sunObj.z + Math.sin(p.angle) * p.dist;
+                p.history = []; p.escapeFrames = 0;
+                p.lostStatus = null; p.captureHost = null; p.captureStatus = null;
+                p.primary = sunObj;
+                p.stage2LastValidX = p.x; p.stage2LastValidZ = p.z;
+                p.stage2VelocityInitialized = false;
+                p.vx = 0; p.vz = 0;
+
+                if (!scene.children.includes(p.mesh)) scene.add(p.mesh);
+                if (!scene.children.includes(p.glow)) scene.add(p.glow);
+                recreatePlanetExtrasIfMissing(p);
+                if (p.orbitRing && !scene.children.includes(p.orbitRing)) scene.add(p.orbitRing);
+                if (p.extras && p.extras.ring && !scene.children.includes(p.extras.ring)) scene.add(p.extras.ring);
+                if (labelEls[p.name]) labelEls[p.name].style.display = 'block';
+
+                if (!planets.includes(p)) planets.push(p);
+            }
+
+            selectedPlanets = [];
+            refreshSelectionVisuals();
+            initializeAllStage2Velocities();
+            updateLostList();
+            updateGrid();
+            for (const p of planets) {
+                syncMeshPosition(p);
+                markOrbitDirty(p);
+                updateOrbitRing(p);
+            }
+            updateLabels();
+        }
+
+        function checkStage2Escape(p) {
+            // Legacy: now unused during play; escape is handled via isEscapingFromSun + escapeFrames in updateStage2Physics.
+            // Kept for safety / called from endPointerInteraction warnings only.
+            if (stage !== 2 || !p || p === sunObj) return;
+            p.glow.material.color.setHex(0xffffff);
+            if (p.orbitRing) p.orbitRing.material.color.setHex(0xffffff);
+            if (labelEls[p.name]) { labelEls[p.name].innerText = p.name; labelEls[p.name].style.color = 'white'; }
+        }
+
 
         // ═══════════════════════════════════════════════════
         //  DOUBLE-TAP / DOUBLE-CLICK
@@ -1613,8 +2130,12 @@
             const excludeSun = (stage === 1 || stage === 2);
             const hit = hitTestPlanet(clientX, clientY, excludeSun, useTouchRadius);
             if (hit) {
-                if (stage === 1 && isPlaying) { showToast(); return; }
+                if ((stage === 1 || stage === 2) && isPlaying) { showToast(); return; }
                 draggedPlanet = hit; isPanning = false; dragActive = true;
+                if (stage === 2) {
+                    draggedPlanet.stage2LastValidX = hit.x;
+                    draggedPlanet.stage2LastValidZ = hit.z;
+                }
                 prevDragPoint.copy(getWorldDragPoint(clientX, clientY));
                 if (stage >= 1) {
                     const shifted = e && e.shiftKey;
@@ -1638,7 +2159,7 @@
             if (isFinePointer) {
                 const excludeSun = (stage === 1 || stage === 2);
                 const hit = hitTestPlanet(clientX, clientY, excludeSun, false);
-                const blockCursor = (stage === 1 && isPlaying);
+                const blockCursor = ((stage === 1 || stage === 2) && isPlaying);
                 renderer.domElement.style.cursor = (hit && !blockCursor) ? 'grab' : 'default';
             }
             if (dragActive && draggedPlanet) {
@@ -1659,7 +2180,15 @@
         }
 
         function endPointerInteraction(clientX, clientY, e) {
-            if (stage === 2 && draggedPlanet) checkStage2Escape(draggedPlanet);
+            if (stage === 2 && draggedPlanet) {
+                initializeStage2Velocity(draggedPlanet);
+                draggedPlanet.history = [];
+                draggedPlanet.escapeFrames = 0;
+                draggedPlanet.stage2LastValidX = draggedPlanet.x;
+                draggedPlanet.stage2LastValidZ = draggedPlanet.z;
+                checkStage2Escape(draggedPlanet); // resets visual color only
+                updateStage2PlacementWarnings(draggedPlanet);
+            }
             if (!pointerHasMoved) {
                 const now = Date.now();
                 const dist = Math.hypot(clientX - lastTapX, clientY - lastTapY);
@@ -1772,9 +2301,12 @@
             $('custom-panel').style.visibility = s === 3 ? 'visible' : 'hidden';
             $('hint').style.display = s === 3 ? 'block' : 'none';
             $('hint-s1').style.display = s === 1 ? 'block' : 'none';
-            $('btn-play').style.display = (s === 1 || s === 3) ? 'inline-block' : 'none';
+            $('hint-s2').style.display = s === 2 ? 'block' : 'none';
+            $('btn-play').style.display = (s === 1 || s === 2 || s === 3) ? 'inline-block' : 'none';
             $('btn-play').innerText = '▶ Play';
             $('escaped-box').style.visibility = 'hidden';
+            const resetBtn = document.getElementById('btn-reset-s2');
+            if (resetBtn) resetBtn.style.display = s === 2 ? 'block' : 'none';
 
             resetCamera();
 
@@ -1805,6 +2337,20 @@
                 autoFollow = false;
             }
 
+            if (s === 2) {
+                initializeAllStage2Velocities();
+                for (const p of planets) {
+                    if (p !== sunObj) {
+                        p.stage2LastValidX = p.x;
+                        p.stage2LastValidZ = p.z;
+                        p.escapeFrames = 0;
+                        p.captureHost = null;
+                        p.captureStatus = null;
+                        p.history = [];
+                    }
+                }
+            }
+
             if (s === 3) {
                 updateCustomPanel(sunObj);
                 selectedPlanets = [sunObj];
@@ -1832,6 +2378,21 @@
             });
             if (!was && isPlaying) {
                 speedFactor = 0;
+
+                if (stage === 2) {
+                    // Always fully reinitialize Stage 2 on every Play press
+                    initializeAllStage2Velocities();
+                    for (const p of planets) {
+                        if (p === sunObj) continue;
+                        p.history = [];
+                        p.escapeFrames = 0;
+                        p.stage2LastValidX = p.x;
+                        p.stage2LastValidZ = p.z;
+                    }
+                    return;
+                }
+
+                // Stage 1 and Stage 3 logic — unchanged
                 planets.forEach(p => {
                     if (p === sunObj || !p.primary) return;
                     p.dist = Math.max(Math.hypot(p.x - p.primary.x, p.z - p.primary.z), 10);
@@ -1842,6 +2403,8 @@
                         p.vx = -Math.sin(p.angle) * v; p.vz = Math.cos(p.angle) * v; p.history = [];
                     }
                 });
+            } else if (was && !isPlaying && stage === 2) {
+                speedFactor = 0;
             }
         }
 
@@ -1932,8 +2495,9 @@
             document.getElementById('custom-panel').style.visibility = 'hidden';
         }
 
-        function showToast() {
+        function showToast(msg = "⏸ Pause before moving objects!") {
             const t = document.getElementById('toast');
+            t.innerText = msg;
             t.style.visibility = 'visible'; t.style.opacity = '1';
             setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.visibility = 'hidden'; }, 300); }, 2000);
         }
@@ -1941,9 +2505,22 @@
         function updateLostList() {
             const list = document.getElementById('lost-list');
             list.innerHTML = '';
-            lostPlanets.forEach(p => {
+            lostPlanets.forEach((p, idx) => {
                 const d = document.createElement('div');
-                d.className = 'escaped-item'; d.innerText = p.name + ' (Lost)';
+                d.className = 'escaped-item';
+                d.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;';
+                const statusText = p.lostStatus || 'Lost';
+                const span = document.createElement('span');
+                span.style.cssText = 'flex:1;font-size:0.85em;';
+                span.innerText = p.name + ' — ' + statusText;
+                d.appendChild(span);
+                if (stage === 2) {
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.innerText = 'Restore';
+                    restoreBtn.style.cssText = 'background:#44aa44;border:none;border-radius:4px;padding:4px 8px;color:white;font-weight:bold;cursor:pointer;font-size:0.8em;min-height:28px;margin-left:6px;';
+                    restoreBtn.onclick = () => restoreSinglePlanet(lostPlanets.indexOf(p));
+                    d.appendChild(restoreBtn);
+                }
                 list.appendChild(d);
             });
             document.getElementById('escaped-box').style.visibility = lostPlanets.length ? 'visible' : 'hidden';
@@ -2003,11 +2580,13 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            const dt = Math.min(clock.getDelta(), 0.1);
+            const dt = Math.min(clock.getDelta(), 0.05);
 
             if (isPlaying) {
-                speedFactor = Math.min(1.0, speedFactor + dt / 3);
-                updatePhysics();
+                if (stage !== 2) {
+                    speedFactor = Math.min(1.0, speedFactor + dt / 3);
+                }
+                updatePhysics(dt);
             }
 
             camTheta += (targetTheta - camTheta) * 0.08;
