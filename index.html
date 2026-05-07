@@ -43,7 +43,6 @@
             cursor: pointer;
         }
 
-        /* ── UI Header ── */
         #ui-header {
             position: absolute;
             top: 0;
@@ -91,7 +90,6 @@
             color: #fff;
         }
 
-        /* ── Landing Hub ── */
         #landing-hub {
             position: absolute;
             top: 50%;
@@ -129,7 +127,6 @@
             width: 82%;
         }
 
-        /* ── Hints ── */
         #hint,
         #hint-s1 {
             margin-top: 8px;
@@ -148,7 +145,6 @@
             color: #ffff88;
         }
 
-        /* ── Custom Panel ── */
         #custom-panel {
             position: absolute;
             bottom: 18px;
@@ -174,7 +170,6 @@
             font-size: .9em;
         }
 
-        /* ── Cockpit ── */
         #cockpit {
             position: absolute;
             right: 18px;
@@ -234,7 +229,6 @@
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
         }
 
-        /* ── Toast ── */
         #toast {
             position: absolute;
             top: 95px;
@@ -252,7 +246,6 @@
             pointer-events: none;
         }
 
-        /* ── Escaped box ── */
         #escaped-box {
             position: absolute;
             bottom: 18px;
@@ -276,7 +269,6 @@
             cursor: pointer;
         }
 
-        /* ── Planet labels ── */
         .planet-label {
             position: absolute;
             color: white;
@@ -288,7 +280,6 @@
             z-index: 6;
         }
 
-        /* ── Camera toggle (mobile only) ── */
         #camera-toggle {
             display: none;
             position: absolute;
@@ -306,7 +297,6 @@
             backdrop-filter: blur(6px);
         }
 
-        /* ── Tablet ── */
         @media (max-width: 768px) {
             #landing-hub {
                 padding: 30px 24px;
@@ -363,7 +353,6 @@
                 font-size: 0.88em;
             }
 
-            /* escaped-box: bottom-right, clear of camera toggle (which is bottom-left) */
             #escaped-box {
                 left: auto;
                 right: 8px;
@@ -373,7 +362,6 @@
             }
         }
 
-        /* ── Phone ── */
         @media (max-width: 480px) {
             #landing-hub {
                 padding: 22px 14px;
@@ -486,7 +474,6 @@
             <button class="btn" id="btn-play" onclick="togglePlay()"
                 style="background:#88ff88;color:black;display:none">▶ Play</button>
         </div>
-        <!-- FIX 5: hint-s1 text corrected — simulation starts paused, so tell user to drag then press Play -->
         <p id="hint" style="display:none">Double-click / double-tap empty space to add a planet · Shift+click to
             multi-select</p>
         <p id="hint-s1" style="display:none">⏸ Drag planets along their orbit · then press Play to animate</p>
@@ -563,44 +550,25 @@
         // ═══════════════════════════════════════════════════
         const isFinePointer = window.matchMedia('(pointer: fine)').matches;
         const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-        const TOUCH_HIT_RADIUS = 64; // px — base tap target radius for touch
+        const TOUCH_HIT_RADIUS = 64;
 
         // ═══════════════════════════════════════════════════
-        //  CAMERA PANEL STATE (mobile collapsible)
+        //  CAMERA PANEL STATE
         // ═══════════════════════════════════════════════════
         let cameraPanelOpen = false;
-
-        function isMobileLayout() {
-            return window.matchMedia('(max-width: 768px)').matches;
-        }
-        function toggleCameraPanel() {
-            cameraPanelOpen = !cameraPanelOpen;
-            updateCameraPanelVisibility();
-        }
+        function isMobileLayout() { return window.matchMedia('(max-width: 768px)').matches; }
+        function toggleCameraPanel() { cameraPanelOpen = !cameraPanelOpen; updateCameraPanelVisibility(); }
         function updateCameraPanelVisibility() {
             const cockpit = document.getElementById('cockpit');
             const toggle = document.getElementById('camera-toggle');
             if (!cockpit || !toggle) return;
-            if (stage === 0) {
-                cockpit.style.visibility = 'hidden';
-                toggle.style.display = 'none';
-                return;
-            }
-            if (isMobileLayout()) {
-                toggle.style.display = 'block';
-                cockpit.style.visibility = cameraPanelOpen ? 'visible' : 'hidden';
-            } else {
-                toggle.style.display = 'none';
-                cockpit.style.visibility = 'visible';
-            }
+            if (stage === 0) { cockpit.style.visibility = 'hidden'; toggle.style.display = 'none'; return; }
+            if (isMobileLayout()) { toggle.style.display = 'block'; cockpit.style.visibility = cameraPanelOpen ? 'visible' : 'hidden'; }
+            else { toggle.style.display = 'none'; cockpit.style.visibility = 'visible'; }
         }
-
         function closeCameraPanelIfOpen() {
-            if (!isMobileLayout()) return;
-            if (!cameraPanelOpen) return;
-
-            cameraPanelOpen = false;
-            updateCameraPanelVisibility();
+            if (!isMobileLayout() || !cameraPanelOpen) return;
+            cameraPanelOpen = false; updateCameraPanelVisibility();
         }
 
         // ═══════════════════════════════════════════════════
@@ -614,18 +582,53 @@
         const ORBIT_SCALE = 15.8;
         const BASE_CAMERA_RADIUS = 2400;
 
+        const SURFACE_OFFSET = 14;
+
         function scaledOrbitDistance(d) { return Math.sqrt(d) * ORBIT_SCALE; }
 
         const SOLAR = [
-            { name: 'Mercury', m: 25, c: 0x8888ff, distance: 108.9 },
-            { name: 'Venus', m: 38, c: 0xffdd44, distance: 158.2 },
-            { name: 'Earth', m: 40, c: 0x00ccff, distance: 199.6 },
-            { name: 'Mars', m: 30, c: 0xff4400, distance: 298.0 },
-            { name: 'Jupiter', m: 90, c: 0xffaa22, distance: 828.5 },
-            { name: 'Saturn', m: 75, c: 0xffe090, distance: 1482.0 },
-            { name: 'Uranus', m: 55, c: 0x44ffdd, distance: 2917.0 },
-            { name: 'Neptune', m: 53, c: 0x0088ff, distance: 4565.0 },
+            { name: 'Mercury', m: 25, c: 0x9b8a7d, distance: 108.9 },
+            { name: 'Venus', m: 38, c: 0xe8c878, distance: 158.2 },
+            { name: 'Earth', m: 40, c: 0x3a7fb8, distance: 199.6 },
+            { name: 'Mars', m: 30, c: 0xc1502a, distance: 298.0 },
+            { name: 'Jupiter', m: 90, c: 0xc9a878, distance: 828.5 },
+            { name: 'Saturn', m: 75, c: 0xd9c89a, distance: 1482.0 },
+            { name: 'Uranus', m: 55, c: 0x8fd5d3, distance: 2917.0 },
+            { name: 'Neptune', m: 53, c: 0x3858a8, distance: 4565.0 },
         ].map(p => ({ ...p, r: scaledOrbitDistance(p.distance) }));
+
+        const SPIN_RATES = {
+            Sun: 0.09,
+            Mercury: 0.048,
+            Venus: -0.024,
+            Earth: 0.72,
+            Mars: 0.69,
+            Jupiter: 1.80,
+            Saturn: 1.68,
+            Uranus: 1.02,
+            Neptune: 1.08
+        };
+
+        const ORBIT_SPEED_MULT = {
+            Mercury: 1.61, Venus: 1.17, Earth: 1.00, Mars: 0.81,
+            Jupiter: 0.44, Saturn: 0.33, Uranus: 0.23, Neptune: 0.18
+        };
+
+        const GLOW_PARAMS = {
+            Sun: { color: '#FFD700', sizeMultiplier: 10 },
+            Mercury: { color: '#d4a06a', sizeMultiplier: 5 },
+            Venus: { color: '#f0d890', sizeMultiplier: 5.5 },
+            Earth: { color: '#5588ff', sizeMultiplier: 5.5 },
+            Mars: { color: '#d06030', sizeMultiplier: 5 },
+            Jupiter: { color: '#c8a860', sizeMultiplier: 7 },
+            Saturn: { color: '#d8c070', sizeMultiplier: 7 },
+            Uranus: { color: '#80d8d8', sizeMultiplier: 6 },
+            Neptune: { color: '#4060c0', sizeMultiplier: 6 },
+        };
+
+        function getGlowParams(name) {
+            return GLOW_PARAMS[name] || { color: '#aaaaaa', sizeMultiplier: 5 };
+        }
 
         // ═══════════════════════════════════════════════════
         //  THREE.JS CORE
@@ -654,33 +657,328 @@
         }
 
         // ═══════════════════════════════════════════════════
-        //  SPACE-TIME GRID
+        //  PROCEDURAL PLANET TEXTURE GENERATION
         // ═══════════════════════════════════════════════════
-        const textureLoader = new THREE.TextureLoader();
 
-        const PLANET_TEXTURES = {
-            Sun: textureLoader.load('textures/sun.png'),
-            Mercury: textureLoader.load('textures/mercury.png'),
-            Venus: textureLoader.load('textures/venus.png'),
-            Earth: textureLoader.load('textures/earth.png'),
-            Mars: textureLoader.load('textures/mars.png'),
-            Jupiter: textureLoader.load('textures/jupiter.png'),
-            Saturn: textureLoader.load('textures/saturn.png'),
-            Uranus: textureLoader.load('textures/uranus.png'),
-            Neptune: textureLoader.load('textures/neptune.png')
-        };
+        function noise2D(x, y, seed) {
+            const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 37.719) * 43758.5453;
+            return n - Math.floor(n);
+        }
+        function smoothNoise(x, y, seed) {
+            const ix = Math.floor(x), iy = Math.floor(y);
+            const fx = x - ix, fy = y - iy;
+            const a = noise2D(ix, iy, seed);
+            const b = noise2D(ix + 1, iy, seed);
+            const c = noise2D(ix, iy + 1, seed);
+            const d = noise2D(ix + 1, iy + 1, seed);
+            const ux = fx * fx * (3 - 2 * fx);
+            const uy = fy * fy * (3 - 2 * fy);
+            return a * (1 - ux) * (1 - uy) + b * ux * (1 - uy) + c * (1 - ux) * uy + d * ux * uy;
+        }
+        function fbm(x, y, seed, octaves = 4) {
+            let v = 0, amp = 0.5, freq = 1;
+            for (let i = 0; i < octaves; i++) {
+                v += amp * smoothNoise(x * freq, y * freq, seed + i * 17);
+                amp *= 0.5; freq *= 2;
+            }
+            return v;
+        }
+
+        const TEX_W = 512, TEX_H = 256;
+
+        function makeProceduralCanvas() {
+            const c = document.createElement('canvas');
+            c.width = TEX_W; c.height = TEX_H;
+            return c;
+        }
+
+        function drawSunTexture(ctx, seed) {
+            const img = ctx.createImageData(TEX_W, TEX_H);
+            for (let y = 0; y < TEX_H; y++) {
+                for (let x = 0; x < TEX_W; x++) {
+                    const n = fbm(x / 14, y / 14, seed, 5);
+                    const granule = fbm(x / 4, y / 4, seed + 50, 3) * 0.25;
+                    const v = Math.min(1, n * 0.7 + granule + 0.35);
+                    const r = Math.round(255 * Math.min(1, v + 0.1));
+                    const g = Math.round(190 * v + 60);
+                    const b = Math.round(60 * v);
+                    const i = (y * TEX_W + x) * 4;
+                    img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+        }
+
+        function drawRockyTexture(ctx, seed, baseHex, darkHex, lightHex, craterDensity = 0.3) {
+            const img = ctx.createImageData(TEX_W, TEX_H);
+            const baseR = (baseHex >> 16) & 0xff, baseG = (baseHex >> 8) & 0xff, baseB = baseHex & 0xff;
+            const darkR = (darkHex >> 16) & 0xff, darkG = (darkHex >> 8) & 0xff, darkB = darkHex & 0xff;
+            const lightR = (lightHex >> 16) & 0xff, lightG = (lightHex >> 8) & 0xff, lightB = lightHex & 0xff;
+            for (let y = 0; y < TEX_H; y++) {
+                for (let x = 0; x < TEX_W; x++) {
+                    const n = fbm(x / 22, y / 18, seed, 5);
+                    const detail = fbm(x / 6, y / 6, seed + 100, 3);
+                    let r, g, b;
+                    if (n < 0.4) {
+                        const t = n / 0.4;
+                        r = darkR + (baseR - darkR) * t;
+                        g = darkG + (baseG - darkG) * t;
+                        b = darkB + (baseB - darkB) * t;
+                    } else {
+                        const t = (n - 0.4) / 0.6;
+                        r = baseR + (lightR - baseR) * t;
+                        g = baseG + (lightG - baseG) * t;
+                        b = baseB + (lightB - baseB) * t;
+                    }
+                    const shade = 0.85 + detail * 0.3;
+                    r *= shade; g *= shade; b *= shade;
+                    const i = (y * TEX_W + x) * 4;
+                    img.data[i] = Math.min(255, r); img.data[i + 1] = Math.min(255, g);
+                    img.data[i + 2] = Math.min(255, b); img.data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+            const craters = Math.floor(craterDensity * 80);
+            for (let k = 0; k < craters; k++) {
+                const cx = Math.random() * TEX_W;
+                const cy = Math.random() * TEX_H;
+                const cr = 2 + Math.random() * 8;
+                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+                grad.addColorStop(0, 'rgba(0,0,0,0.45)');
+                grad.addColorStop(0.7, 'rgba(0,0,0,0.15)');
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        function drawEarthTexture(ctx, seed) {
+            const img = ctx.createImageData(TEX_W, TEX_H);
+            for (let y = 0; y < TEX_H; y++) {
+                for (let x = 0; x < TEX_W; x++) {
+                    const continent = fbm(x / 30, y / 22, seed, 5);
+                    const detail = fbm(x / 8, y / 8, seed + 30, 3);
+                    const latFactor = Math.abs(y / TEX_H - 0.5) * 2;
+                    let r, g, b;
+                    if (continent < 0.48) {
+                        const depth = continent / 0.48;
+                        r = 20 + depth * 40; g = 60 + depth * 60; b = 130 + depth * 70;
+                    } else {
+                        const land = (continent - 0.48) / 0.52;
+                        if (latFactor > 0.85) { r = 230; g = 235; b = 240; }
+                        else if (latFactor > 0.6) {
+                            const t = (latFactor - 0.6) / 0.25;
+                            r = 110 + t * 120; g = 100 + t * 135; b = 70 + t * 170;
+                        } else {
+                            r = 60 + land * 90; g = 110 + land * 60; b = 50 + land * 30;
+                        }
+                    }
+                    const cloud = fbm(x / 18, y / 14, seed + 70, 4);
+                    if (cloud > 0.62) {
+                        const c = (cloud - 0.62) / 0.38;
+                        r = r + (255 - r) * c * 0.7;
+                        g = g + (255 - g) * c * 0.7;
+                        b = b + (255 - b) * c * 0.7;
+                    }
+                    const shade = 0.9 + detail * 0.2;
+                    r *= shade; g *= shade; b *= shade;
+                    const i = (y * TEX_W + x) * 4;
+                    img.data[i] = Math.min(255, r); img.data[i + 1] = Math.min(255, g);
+                    img.data[i + 2] = Math.min(255, b); img.data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+        }
+
+        function drawCloudyTexture(ctx, seed, baseHex, swirlHex) {
+            const img = ctx.createImageData(TEX_W, TEX_H);
+            const baseR = (baseHex >> 16) & 0xff, baseG = (baseHex >> 8) & 0xff, baseB = baseHex & 0xff;
+            const swirlR = (swirlHex >> 16) & 0xff, swirlG = (swirlHex >> 8) & 0xff, swirlB = swirlHex & 0xff;
+            for (let y = 0; y < TEX_H; y++) {
+                for (let x = 0; x < TEX_W; x++) {
+                    const swirl = fbm(x / 26, y / 8 + Math.sin(x / 40) * 2, seed, 4);
+                    const detail = fbm(x / 6, y / 6, seed + 12, 3);
+                    const t = swirl * 0.7 + detail * 0.3;
+                    const r = baseR + (swirlR - baseR) * t;
+                    const g = baseG + (swirlG - baseG) * t;
+                    const b = baseB + (swirlB - baseB) * t;
+                    const i = (y * TEX_W + x) * 4;
+                    img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+        }
+
+        function drawGasGiantTexture(ctx, seed, bandHexes, turbulence = 1, hasGreatSpot = false) {
+            const img = ctx.createImageData(TEX_W, TEX_H);
+            for (let y = 0; y < TEX_H; y++) {
+                const lat = y / TEX_H;
+                const warp = fbm(lat * 8, seed * 3, seed + 5, 3) * 0.05 * turbulence;
+                const bandPos = lat + warp;
+                const bandIdx = Math.min(bandHexes.length - 1, Math.floor(bandPos * bandHexes.length));
+                const nextIdx = Math.min(bandHexes.length - 1, bandIdx + 1);
+                const bandT = (bandPos * bandHexes.length) - bandIdx;
+                for (let x = 0; x < TEX_W; x++) {
+                    const flow = fbm(x / 30 + lat * 0.5, lat * 60, seed + 22, 3) * turbulence * 0.4;
+                    const detail = fbm(x / 8, y / 4, seed + 33, 3) * 0.15;
+                    const t = Math.max(0, Math.min(1, bandT + flow + detail));
+                    const a = bandHexes[bandIdx], b = bandHexes[nextIdx];
+                    const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+                    const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+                    let r = ar + (br - ar) * t;
+                    let g = ag + (bg - ag) * t;
+                    let bl = ab + (bb - ab) * t;
+                    if (hasGreatSpot) {
+                        const sx = TEX_W * 0.65, sy = TEX_H * 0.62;
+                        const dx = (x - sx) / 28, dy = (y - sy) / 14;
+                        const sd = Math.sqrt(dx * dx + dy * dy);
+                        if (sd < 1) {
+                            const sf = 1 - sd;
+                            r = r * (1 - sf * 0.6) + 200 * sf * 0.6;
+                            g = g * (1 - sf * 0.6) + 70 * sf * 0.6;
+                            bl = bl * (1 - sf * 0.6) + 50 * sf * 0.6;
+                        }
+                    }
+                    const i = (y * TEX_W + x) * 4;
+                    img.data[i] = Math.min(255, r); img.data[i + 1] = Math.min(255, g);
+                    img.data[i + 2] = Math.min(255, bl); img.data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+        }
+
+        function drawSaturnRingTexture() {
+            const w = 512, h = 64;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            const img = ctx.createImageData(w, h);
+            for (let x = 0; x < w; x++) {
+                const t = x / w;
+                let alpha = 0;
+                if (t < 0.05) alpha = 0;
+                else if (t < 0.4) alpha = 0.55 + 0.2 * Math.sin(t * 60);
+                else if (t < 0.5) alpha = 0.05;
+                else if (t < 0.92) alpha = 0.7 + 0.15 * Math.sin(t * 80);
+                else alpha = (1 - t) / 0.08 * 0.3;
+                const r = 220 + 20 * Math.sin(t * 40);
+                const g = 200 + 15 * Math.sin(t * 50);
+                const b = 160 + 25 * Math.sin(t * 30);
+                for (let y = 0; y < h; y++) {
+                    const i = (y * w + x) * 4;
+                    img.data[i] = r;
+                    img.data[i + 1] = g;
+                    img.data[i + 2] = b;
+                    img.data[i + 3] = Math.round(alpha * 255);
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            return tex;
+        }
+
+        function createProceduralPlanetTexture(name, fallbackColorHex) {
+            try {
+                const c = makeProceduralCanvas();
+                const ctx = c.getContext('2d');
+                const seed = name.length * 13.7;
+                switch (name) {
+                    case 'Sun': drawSunTexture(ctx, seed); break;
+                    case 'Mercury': drawRockyTexture(ctx, seed, 0x8a7a6e, 0x4a4038, 0xc4b5a3, 0.5); break;
+                    case 'Venus': drawCloudyTexture(ctx, seed, 0xd9b870, 0xf2dca0); break;
+                    case 'Earth': drawEarthTexture(ctx, seed); break;
+                    case 'Mars': drawRockyTexture(ctx, seed, 0xb55a35, 0x6e2d18, 0xe89870, 0.35); break;
+                    case 'Jupiter':
+                        drawGasGiantTexture(ctx, seed,
+                            [0xc9a070, 0xe8d5a8, 0xa07848, 0xd8b888, 0xb08858, 0xe5cda0, 0xb89868],
+                            1.4, true); break;
+                    case 'Saturn':
+                        drawGasGiantTexture(ctx, seed,
+                            [0xd8c08a, 0xece0b8, 0xc0a878, 0xe8d8a8, 0xc8b088], 0.7, false); break;
+                    case 'Uranus':
+                        drawGasGiantTexture(ctx, seed,
+                            [0xa8d8d8, 0xc0e8e6, 0x8fc8c5, 0xb5dcd9], 0.4, false); break;
+                    case 'Neptune':
+                        drawGasGiantTexture(ctx, seed,
+                            [0x3858a8, 0x5878c8, 0x2a4090, 0x6488d0, 0x3050a0], 0.9, false); break;
+                    default: {
+                        let baseHex = 0x808890, darkHex = 0x404048, lightHex = 0xb0b8c0;
+                        if (fallbackColorHex !== undefined) {
+                            const num = typeof fallbackColorHex === 'number'
+                                ? fallbackColorHex
+                                : parseInt(String(fallbackColorHex).replace('#', ''), 16);
+                            if (!isNaN(num)) {
+                                baseHex = num;
+                                const dr = Math.round(((num >> 16) & 0xff) * 0.45);
+                                const dg = Math.round(((num >> 8) & 0xff) * 0.45);
+                                const db = Math.round((num & 0xff) * 0.45);
+                                darkHex = (dr << 16) | (dg << 8) | db;
+                                const lr = Math.min(255, Math.round(((num >> 16) & 0xff) * 1.4));
+                                const lg = Math.min(255, Math.round(((num >> 8) & 0xff) * 1.4));
+                                const lb = Math.min(255, Math.round((num & 0xff) * 1.4));
+                                lightHex = (lr << 16) | (lg << 8) | lb;
+                            }
+                        }
+                        drawRockyTexture(ctx, seed, baseHex, darkHex, lightHex, 0.25);
+                        break;
+                    }
+                }
+                const tex = new THREE.CanvasTexture(c);
+                tex.encoding = THREE.sRGBEncoding;
+                tex.wrapS = THREE.RepeatWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.anisotropy = 4;
+                return tex;
+            } catch (e) {
+                console.warn('[SpaceTime] Texture gen failed for', name, e);
+                return null;
+            }
+        }
+
+        function createPlanetMaterial(name, fallbackColorHex) {
+            let tex = null;
+            try {
+                tex = createProceduralPlanetTexture(name, fallbackColorHex);
+            } catch (e) {
+                console.warn('[SpaceTime] createProceduralPlanetTexture threw:', e);
+            }
+
+            const fallbackNum = typeof fallbackColorHex === 'number'
+                ? fallbackColorHex
+                : parseInt(String(fallbackColorHex || '0xaaaaaa').replace('#', ''), 16);
+            const safeColor = isNaN(fallbackNum) ? 0xaaaaaa : fallbackNum;
+
+            if (name === 'Sun') {
+                return new THREE.MeshBasicMaterial({
+                    map: tex || null,
+                    color: tex ? 0xffffff : safeColor
+                });
+            }
+            return new THREE.MeshStandardMaterial({
+                map: tex || null,
+                color: tex ? 0xffffff : safeColor,
+                roughness: 0.85,
+                metalness: 0.05,
+                emissive: new THREE.Color(safeColor),
+                emissiveIntensity: tex ? 0.06 : 0.12
+            });
+        }
+
         // ═══════════════════════════════════════════════════
         //  LIGHTING
-        //  FIX 7: Sun light starts at a sensible above-grid Y;
-        //         it is updated every frame from the actual mesh world position.
         // ═══════════════════════════════════════════════════
-        scene.add(new THREE.AmbientLight(0x404060, 1.2));
-        const sunLight = new THREE.PointLight(0xffd090, 2.5, 5000);
-        sunLight.position.set(0, 200, 0); // safe default until first frame
+        scene.add(new THREE.AmbientLight(0x556680, 1.6));
+        const sunLight = new THREE.PointLight(0xffe6b0, 2.8, 8000, 1.2);
+        sunLight.position.set(0, 200, 0);
         scene.add(sunLight);
-        const fillLight = new THREE.DirectionalLight(0x6080ff, 0.4);
+        const fillLight = new THREE.DirectionalLight(0x6080ff, 0.55);
         fillLight.position.set(-1, 1, -1);
         scene.add(fillLight);
+        const rimLight = new THREE.DirectionalLight(0x8090ff, 0.25);
+        rimLight.position.set(1, -0.5, 1);
+        scene.add(rimLight);
 
         // ═══════════════════════════════════════════════════
         //  SPACE-TIME GRID
@@ -693,7 +991,8 @@
 
         for (let iz = 0; iz <= GRID_SEGS; iz++)
             for (let ix = 0; ix <= GRID_SEGS; ix++)
-                gridXZ.push(-GRID_SIZE + ix * (GRID_SIZE * 2 / GRID_SEGS), -GRID_SIZE + iz * (GRID_SIZE * 2 / GRID_SEGS));
+                gridXZ.push(-GRID_SIZE + ix * (GRID_SIZE * 2 / GRID_SEGS),
+                    -GRID_SIZE + iz * (GRID_SIZE * 2 / GRID_SEGS));
 
         const indexList = [];
         for (let iz = 0; iz <= GRID_SEGS; iz++)
@@ -745,40 +1044,39 @@
 
         // ═══════════════════════════════════════════════════
         //  ORBIT RINGS
-        //  FIX 3: Only rebuild ring geometry when position/dist/shape actually changed.
-        //         Keep a dirty flag per planet; clear after rebuild.
+        //  FIX: buildOrbitRingGeo now accepts planet param and uses its radius
+        //  so ring Y matches syncMeshPosition exactly.
         // ═══════════════════════════════════════════════════
-        function buildOrbitRingGeo(dist, shape, primary = null) {
+        function buildOrbitRingGeo(dist, shape, primary = null, planet = null) {
             const pts = [], steps = 160;
             const cx = primary ? primary.x : 0, cz = primary ? primary.z : 0;
+            // Use the planet's actual radius so rings match syncMeshPosition Y exactly.
+            const planetRadius = planet ? (planet.mass * 0.45) : 0;
             for (let i = 0; i <= steps; i++) {
                 const a = (i / steps) * Math.PI * 2;
                 const pos = geoPos(a, dist, shape);
                 const wx = cx + pos.x, wz = cz + pos.y;
-                const wy = warpDepth(wx, wz) + 3;
+                const wy = warpDepth(wx, wz) + planetRadius + SURFACE_OFFSET;
                 pts.push(new THREE.Vector3(wx, wy, wz));
             }
             return new THREE.BufferGeometry().setFromPoints(pts);
         }
 
-        // Mark a planet's orbit ring as needing a rebuild
-        function markOrbitDirty(p) { p._orbitDirty = true; }
-
-        // Mark ALL planet orbit rings dirty — needed when the fabric changes globally
-        // (any planet moves, so warpDepth at every ring point may change)
+        function markOrbitDirty(p) { if (p) p._orbitDirty = true; }
         function markAllOrbitsDirty() {
             for (const p of planets) {
                 if (p.orbitRing && p !== sunObj) p._orbitDirty = true;
             }
         }
 
+        // FIX: updateOrbitRing passes p to buildOrbitRingGeo for radius-aware Y.
         function updateOrbitRing(p) {
             if (!p.orbitRing || p === sunObj || !p.primary) return;
-            if (!p._orbitDirty) return; // skip if nothing changed
+            if (!p._orbitDirty) return;
             p.orbitRing.geometry.dispose();
-            p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary);
+            p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary, p);
             p.orbitRing.position.set(0, 0, 0);
-            p.orbitRing.material.opacity = p.selRing.visible ? 0.65 : 0.18;
+            p.orbitRing.material.opacity = (p.selRing && p.selRing.visible) ? 0.65 : 0.18;
             p._orbitDirty = false;
         }
 
@@ -807,68 +1105,143 @@
         const raycaster = new THREE.Raycaster();
         const mouse2d = new THREE.Vector2();
 
-        // ═══════════════════════════════════════════════════
-        //  PLANET FACTORY
-        // ═══════════════════════════════════════════════════
         function hexColor(c) { return '#' + c.toString(16).padStart(6, '0'); }
         function threeColor(hex) { return new THREE.Color(hex); }
 
+        // ═══════════════════════════════════════════════════
+        //  PLANET FACTORY
+        // ═══════════════════════════════════════════════════
         function makePlanetMesh(name, mass, colorHex) {
             const r = mass * 0.45;
-
-            const texture = PLANET_TEXTURES[name] || null;
-
-            const mat = new THREE.MeshStandardMaterial({
-                map: texture,
-                color: 0xffffff,
-                emissive: 0x555555,
-                emissiveIntensity: 0.45,
-                roughness: 0.8,
-                metalness: 0.02
-            });
-
-            return new THREE.Mesh(
-                new THREE.SphereGeometry(r, 32, 24),
-                mat
-            );
+            const fallbackNum = typeof colorHex === 'number'
+                ? colorHex
+                : parseInt(String(colorHex).replace('#', ''), 16);
+            const mat = createPlanetMaterial(name, isNaN(fallbackNum) ? 0xaaaaaa : fallbackNum);
+            return new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), mat);
         }
 
         function makeSelectionRing(r) {
             const geo = new THREE.RingGeometry(r + 6, r + 10, 48);
-            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.85
+            });
             const ring = new THREE.Mesh(geo, mat);
-            ring.rotation.x = -Math.PI / 2; ring.visible = false;
+            ring.rotation.x = -Math.PI / 2;
+            ring.visible = false;
             return ring;
         }
 
-        function makeGlowSprite(colorHex, r) {
+        function makeGlowSprite(name, colorHex, r) {
+            const gp = getGlowParams(name);
+            const useColor = GLOW_PARAMS[name] ? gp.color : (colorHex || gp.color);
             const canvas = document.createElement('canvas');
             canvas.width = canvas.height = 128;
             const ctx = canvas.getContext('2d');
-            const c = threeColor(colorHex);
+            const c = threeColor(useColor);
             const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-            grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.6)`);
+            const innerAlpha = name === 'Sun' ? 0.7 : (name === 'Jupiter' || name === 'Saturn') ? 0.4 : 0.3;
+            grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},${innerAlpha})`);
+            grad.addColorStop(0.5, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.08)`);
             grad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
-            const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthWrite: false });
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+            const mat = new THREE.SpriteMaterial({
+                map: new THREE.CanvasTexture(canvas),
+                transparent: true,
+                depthWrite: false,
+                depthTest: false
+            });
             const sprite = new THREE.Sprite(mat);
-            sprite.scale.set(r * 7, r * 7, 1);
+            sprite.scale.set(r * gp.sizeMultiplier, r * gp.sizeMultiplier, 1);
+            sprite.renderOrder = 1;
             return sprite;
         }
 
+        // ═══════════════════════════════════════════════════
+        //  PLANET EXTRAS
+        // ═══════════════════════════════════════════════════
+        let _saturnRingTex = null;
+        function getSaturnRingTexture() {
+            if (!_saturnRingTex) _saturnRingTex = drawSaturnRingTexture();
+            return _saturnRingTex;
+        }
+
+        function createPlanetExtras(name, mass) {
+            if (name === 'Saturn') {
+                const r = mass * 0.45;
+                const inner = r * 1.35, outer = r * 2.3;
+                const geo = new THREE.RingGeometry(inner, outer, 96, 1);
+                const pos = geo.attributes.position;
+                const uv = geo.attributes.uv;
+                for (let i = 0; i < pos.count; i++) {
+                    const x = pos.getX(i), y = pos.getY(i);
+                    const dist = Math.sqrt(x * x + y * y);
+                    const u = (dist - inner) / (outer - inner);
+                    uv.setXY(i, u, 0.5);
+                }
+                uv.needsUpdate = true;
+                const mat = new THREE.MeshBasicMaterial({
+                    map: getSaturnRingTexture(),
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    depthWrite: false,
+                    opacity: 0.95
+                });
+                const ring = new THREE.Mesh(geo, mat);
+                ring.rotation.x = Math.PI / 2.4;
+                ring.rotation.z = 0.15;
+                ring.renderOrder = 2;
+                return { ring, baseRadius: r };
+            }
+            return null;
+        }
+
+        function updatePlanetExtras(p) {
+            if (!p.extras || !p.extras.ring) return;
+            const ring = p.extras.ring;
+            ring.position.copy(p.mesh.position);
+            const currentR = p.mass * 0.45;
+            const baseR = p._extrasBaseRadius || currentR;
+            const s = currentR / baseR;
+            ring.scale.set(s, s, s);
+        }
+
+        function removePlanetExtrasFromScene(p, dispose = false) {
+            if (!p.extras) return;
+            if (p.extras.ring) {
+                scene.remove(p.extras.ring);
+                if (dispose) {
+                    p.extras.ring.geometry.dispose();
+                    p.extras.ring.material.dispose();
+                    p.extras.ring = null;
+                }
+            }
+        }
+
+        function recreatePlanetExtrasIfMissing(p) {
+            if (p.name === 'Saturn') {
+                if (!p.extras || !p.extras.ring) {
+                    p.extras = createPlanetExtras(p.name, p.mass);
+                    if (p.extras && p.extras.ring) {
+                        scene.add(p.extras.ring);
+                    }
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  ADD PLANET
+        //  FIX: Orbit ring is built AFTER p is constructed so planet radius
+        //  is available for radius-aware Y calculation in buildOrbitRingGeo.
+        // ═══════════════════════════════════════════════════
         function addPlanet(x, z, m, colorHex, name, shape, r, isOriginal = false) {
             const mesh = makePlanetMesh(name, m, colorHex);
             const selRing = makeSelectionRing(m * 0.45);
-            const glow = makeGlowSprite(colorHex, m * 0.45);
-            let orbitRing = null;
-            if (sunObj) {
-                orbitRing = new THREE.LineLoop(
-                    buildOrbitRingGeo(r, shape, sunObj),
-                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 })
-                );
-                orbitRing.position.set(0, 0, 0);
-                scene.add(orbitRing);
-            }
+            const glow = makeGlowSprite(name, colorHex, m * 0.45);
+
             if (!labelEls[name]) {
                 const el = document.createElement('div');
                 el.className = 'planet-label'; el.innerText = name;
@@ -883,27 +1256,49 @@
                 angle = Math.atan2(z - sunObj.z, x - sunObj.x);
                 vx = -Math.sin(angle) * v; vz = Math.cos(angle) * v;
             }
-            scene.add(mesh); scene.add(glow); mesh.add(selRing);
+
+            scene.add(mesh);
+            scene.add(glow);
+            mesh.add(selRing);
+
+            const extras = createPlanetExtras(name, m);
+            if (extras && extras.ring) {
+                scene.add(extras.ring);
+            }
+
             const p = {
                 x, z, mass: m, color: colorHex, name, shape,
                 initialR: r, initialAngle: angle, dist: r, angle,
                 initialMass: m, initialColor: colorHex, initialShape: shape,
                 vx, vz, primary: sunObj, basePrimaryMass: sunObj ? sunObj.mass : 1,
                 isDynamic: false, isOriginal, history: [],
-                mesh, selRing, glow, orbitRing, w: undefined,
-                _orbitDirty: false   // ring is fresh on creation
+                mesh, selRing, glow, orbitRing: null, w: undefined,
+                extras, _extrasBaseRadius: m * 0.45,
+                spinRate: SPIN_RATES[name] !== undefined ? SPIN_RATES[name] : (0.3 + Math.random() * 0.6),
+                orbitMult: ORBIT_SPEED_MULT[name] !== undefined ? ORBIT_SPEED_MULT[name] : 1.0,
+                _orbitDirty: false
             };
             mesh.userData.planet = p;
+
+            // FIX: Build orbit ring NOW that p exists, so planet radius is available.
+            if (sunObj) {
+                const orbitRing = new THREE.LineLoop(
+                    buildOrbitRingGeo(r, shape, sunObj, p),
+                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 })
+                );
+                orbitRing.position.set(0, 0, 0);
+                scene.add(orbitRing);
+                p.orbitRing = orbitRing;
+            }
+
             planets.push(p);
             return p;
         }
 
         function makeSun(mass) {
-            const mesh = makePlanetMesh('Sun', mass, '#FFD700');
-            mesh.material.emissive = new THREE.Color(0xffd700);
-            mesh.material.emissiveIntensity = 0.6;
+            const mesh = makePlanetMesh('Sun', mass, 0xFFD700);
             const selRing = makeSelectionRing(mass * 0.45);
-            const glow = makeGlowSprite('#FFD700', mass * 0.45);
+            const glow = makeGlowSprite('Sun', '#FFD700', mass * 0.45);
             scene.add(mesh); scene.add(glow); mesh.add(selRing);
             if (!labelEls['SUN']) {
                 const el = document.createElement('div');
@@ -913,11 +1308,13 @@
             }
             labelEls['SUN'].style.display = 'block';
             const s = {
-                x: 0, z: 0, mass, color: '#FFD700', name: 'SUN', shape: 'circle', dist: 0,
+                x: 0, z: 0, mass: mass, color: '#FFD700', name: 'SUN', shape: 'circle', dist: 0,
                 vx: 0, vz: 0, primary: null,
                 initialMass: mass, initialColor: '#FFD700', initialShape: 'circle',
                 basePrimaryMass: mass, isDynamic: false, isOriginal: true, history: [],
                 mesh, selRing, glow, orbitRing: null, angle: 0, w: undefined,
+                extras: null, _extrasBaseRadius: mass * 0.45,
+                spinRate: SPIN_RATES.Sun, orbitMult: 1.0,
                 _orbitDirty: false
             };
             mesh.userData.planet = s;
@@ -925,21 +1322,30 @@
         }
 
         function removePlanetFromScene(p, disposeOrbit = true) {
-            scene.remove(p.mesh); scene.remove(p.glow);
+            scene.remove(p.mesh);
+            scene.remove(p.glow);
             if (p.orbitRing) {
                 scene.remove(p.orbitRing);
-                if (disposeOrbit) p.orbitRing.geometry.dispose();
+                if (disposeOrbit) {
+                    p.orbitRing.geometry.dispose();
+                    p.orbitRing.material.dispose();
+                }
             }
+            removePlanetExtrasFromScene(p, disposeOrbit);
             if (labelEls[p.name]) labelEls[p.name].style.display = 'none';
         }
 
+        // ═══════════════════════════════════════════════════
+        //  POSITION SYNC
+        // ═══════════════════════════════════════════════════
         function syncMeshPosition(p) {
             const radius = p.mass * 0.45;
             const wy = p === sunObj ? warpDepth(p.x, p.z, p) : contactDepthForPlanet(p);
-            const CONTACT_OFFSET = p === sunObj ? -144 : 12;
-            const py = wy + radius + CONTACT_OFFSET;
+            const offset = p === sunObj ? -144 : SURFACE_OFFSET;
+            const py = wy + radius + offset;
             p.mesh.position.set(p.x, py, p.z);
             p.glow.position.set(p.x, py, p.z);
+            updatePlanetExtras(p);
         }
 
         function refreshSelectionVisuals() {
@@ -952,13 +1358,10 @@
             }
         }
 
-        // Reusable vector for label/hit-test projections
         const _labelWorld = new THREE.Vector3();
-
         function updateLabels() {
             for (const p of planets) {
                 const el = labelEls[p.name]; if (!el) continue;
-                // Use actual mesh world position — matches visual exactly
                 p.mesh.getWorldPosition(_labelWorld);
                 const lp = _labelWorld.clone();
                 lp.y += p.mass * 0.45 + 8;
@@ -971,33 +1374,24 @@
 
         // ═══════════════════════════════════════════════════
         //  HIT TEST
-        //  FIX 4: Touch fallback caps bestDist at TOUCH_HIT_RADIUS per planet
-        //         (not Infinity) — only the nearest planet within its own tap
-        //         zone is returned.
         // ═══════════════════════════════════════════════════
         const _htWorld = new THREE.Vector3();
-
         function hitTestPlanet(mx, my, excludeSun = false, useTouchRadius = false) {
             mouse2d.set((mx / window.innerWidth) * 2 - 1, -(my / window.innerHeight) * 2 + 1);
             raycaster.setFromCamera(mouse2d, camera);
             const meshes = planets.filter(p => !(excludeSun && p === sunObj)).map(p => p.mesh);
             const hits = raycaster.intersectObjects(meshes, false);
             if (hits.length > 0) return hits[0].object.userData.planet;
-
             if (!useTouchRadius) return null;
-
-            // Touch fallback: nearest planet whose screen-circle contains the tap
             let best = null, bestDist = Infinity;
             for (const p of planets) {
                 if (excludeSun && p === sunObj) continue;
                 p.mesh.getWorldPosition(_htWorld);
                 const proj = _htWorld.clone().project(camera);
-                if (proj.z >= 1) continue; // behind camera
+                if (proj.z >= 1) continue;
                 const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
                 const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
                 const d = Math.hypot(mx - sx, my - sy);
-                // Each planet gets its own tap zone: at least TOUCH_HIT_RADIUS,
-                // scaled up for larger planets
                 const tapZone = Math.max(TOUCH_HIT_RADIUS, p.mass * 0.45 * 1.4);
                 if (d < tapZone && d < bestDist) { bestDist = d; best = p; }
             }
@@ -1015,9 +1409,11 @@
                 let anyMoved = false;
                 for (const p of planets) {
                     if (p === sunObj || p === draggedPlanet || !p.primary) continue;
-                    if (p.w === undefined) p.w = Math.sqrt(G * p.primary.mass / Math.pow(Math.max(p.dist, 10), 3));
+                    if (p.w === undefined) {
+                        p.w = Math.sqrt(G * p.primary.mass / Math.pow(Math.max(p.dist, 10), 3));
+                    }
                     const prevAngle = p.angle;
-                    p.angle += p.w * sf;
+                    p.angle += p.w * sf * (p.orbitMult || 1.0);
                     const pos = geoPos(p.angle, p.dist, p.shape);
                     p.x = p.primary.x + pos.x; p.z = p.primary.z + pos.y;
                     if (p.angle !== prevAngle) anyMoved = true;
@@ -1027,7 +1423,7 @@
             }
             if (stage === 2) return;
 
-            // Stage 3 N-body
+            // Stage 3 — N-body
             for (const p of planets) {
                 if (p === sunObj || p.isDynamic || !p.primary) continue;
                 let trigger = (p === draggedPlanet);
@@ -1066,7 +1462,7 @@
                 if (p === draggedPlanet) continue;
                 if (!p.isDynamic && p.primary) {
                     const w = Math.sqrt(G * p.primary.mass / Math.pow(Math.max(p.dist, 10), 3));
-                    p.angle += w * speedFactor;
+                    p.angle += w * speedFactor * (p.orbitMult || 1.0);
                     const pos = geoPos(p.angle, p.dist, p.shape);
                     p.x = p.primary.x + pos.x; p.z = p.primary.z + pos.y;
                     markOrbitDirty(p);
@@ -1093,16 +1489,16 @@
                     }
                 }
                 if (Math.abs(p.x) > BOUND || Math.abs(p.z) > BOUND) {
-                    removePlanetFromScene(p, false); planets.splice(i, 1);
-                    lostPlanets.push(p); updateLostList();
+                    removePlanetFromScene(p, false);
+                    planets.splice(i, 1);
+                    lostPlanets.push(p);
+                    updateLostList();
                 }
             }
         }
 
         // ═══════════════════════════════════════════════════
         //  DRAG
-        //  FIX 1: Stage 1 uses world-space ray-plane intersection (same as Stages 2/3).
-        //         The old screen-angle method broke at non-side-view camera angles.
         // ═══════════════════════════════════════════════════
         const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         const dragPoint = new THREE.Vector3();
@@ -1119,16 +1515,14 @@
         function handleDragging(mx, my) {
             if (!draggedPlanet) return;
             const wm = getWorldDragPoint(mx, my);
-
             if (stage === 1) {
-                // World-space angle from Sun to drag point — works at any camera tilt
                 const angle = Math.atan2(wm.z - sunObj.z, wm.x - sunObj.x);
                 draggedPlanet.angle = angle;
                 const pos = geoPos(angle, draggedPlanet.dist, draggedPlanet.shape);
                 draggedPlanet.x = sunObj.x + pos.x;
                 draggedPlanet.z = sunObj.z + pos.y;
                 draggedPlanet.w = Math.sqrt(G * sunObj.mass / Math.pow(Math.max(draggedPlanet.dist, 10), 3));
-                markAllOrbitsDirty(); // fabric changes for all rings when any planet moves
+                markAllOrbitsDirty();
             } else if (stage === 2) {
                 draggedPlanet.x = wm.x; draggedPlanet.z = wm.z;
                 draggedPlanet.dist = Math.hypot(wm.x - sunObj.x, wm.z - sunObj.z);
@@ -1139,7 +1533,11 @@
                 if (draggedPlanet === sunObj) {
                     movePlanetAndSatellites(sunObj, dx, dz);
                 } else if (selectedPlanets.length > 1 && selectedPlanets.includes(draggedPlanet)) {
-                    selectedPlanets.forEach(p => { p.x += dx; p.z += dz; p.isDynamic = true; p.history = []; markOrbitDirty(p); });
+                    selectedPlanets.forEach(p => {
+                        p.x += dx; p.z += dz;
+                        p.isDynamic = true; p.history = [];
+                        markOrbitDirty(p);
+                    });
                 } else if (draggedPlanet.primary) {
                     const angle = Math.atan2(wm.z - draggedPlanet.primary.z, wm.x - draggedPlanet.primary.x);
                     const nd = Math.max(Math.hypot(wm.x - draggedPlanet.primary.x, wm.z - draggedPlanet.primary.z), 10);
@@ -1159,22 +1557,20 @@
             planets.forEach(s => { if (s.primary === p && s !== p) movePlanetAndSatellites(s, dx, dz); });
         }
 
-        // ═══════════════════════════════════════════════════
-        //  ESCAPE CHECK (Stage 2)
-        // ═══════════════════════════════════════════════════
         function checkStage2Escape(p) {
             if (stage !== 2 || !p || p === sunObj) return;
             if (Math.hypot(p.x - sunObj.x, p.z - sunObj.z) > STAGE_2_ESCAPE_DISTANCE) {
                 const idx = planets.indexOf(p);
                 if (idx !== -1) planets.splice(idx, 1);
                 selectedPlanets = selectedPlanets.filter(s => s !== p);
-                removePlanetFromScene(p, false); // keep orbit geometry for restore
-                lostPlanets.push(p); updateLostList();
+                removePlanetFromScene(p, false);
+                lostPlanets.push(p);
+                updateLostList();
             }
         }
 
         // ═══════════════════════════════════════════════════
-        //  DOUBLE-TAP / DOUBLE-CLICK — Stage 3 planet creation
+        //  DOUBLE-TAP / DOUBLE-CLICK
         // ═══════════════════════════════════════════════════
         let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
         const DBL_TAP_MS = 300, DBL_TAP_PX = 25;
@@ -1192,15 +1588,14 @@
             const name = 'Planet ' + planets.length;
             addPlanet(wm.x, wm.z, 40, c, name, 'circle', d, false);
             const np = planets[planets.length - 1];
-            syncMeshPosition(np); // sync immediately for hit-testing
+            syncMeshPosition(np);
             selectedPlanets = [np]; refreshSelectionVisuals();
             updateCustomPanel(np);
             document.getElementById('custom-panel').style.visibility = 'visible';
         }
 
         // ═══════════════════════════════════════════════════
-        //  UNIFIED POINTER INPUT
-        //  FIX 6: pointercancel always resets activePointerId regardless of pointerId match.
+        //  POINTER INPUT
         // ═══════════════════════════════════════════════════
         let pointerDownX = 0, pointerDownY = 0, pointerHasMoved = false;
         let panStartX = 0, panStartY = 0;
@@ -1214,11 +1609,9 @@
 
         function beginPointerInteraction(clientX, clientY, e) {
             pointerDownX = clientX; pointerDownY = clientY; pointerHasMoved = false;
-
             const useTouchRadius = isCoarsePointer || (e && e.pointerType !== 'mouse');
             const excludeSun = (stage === 1 || stage === 2);
             const hit = hitTestPlanet(clientX, clientY, excludeSun, useTouchRadius);
-
             if (hit) {
                 if (stage === 1 && isPlaying) { showToast(); return; }
                 draggedPlanet = hit; isPanning = false; dragActive = true;
@@ -1242,15 +1635,12 @@
         function movePointerInteraction(clientX, clientY, e) {
             const dx = clientX - pointerDownX, dy = clientY - pointerDownY;
             if (Math.hypot(dx, dy) > 6) pointerHasMoved = true;
-
-            // Cursor update — fine pointer only
             if (isFinePointer) {
                 const excludeSun = (stage === 1 || stage === 2);
                 const hit = hitTestPlanet(clientX, clientY, excludeSun, false);
                 const blockCursor = (stage === 1 && isPlaying);
                 renderer.domElement.style.cursor = (hit && !blockCursor) ? 'grab' : 'default';
             }
-
             if (dragActive && draggedPlanet) {
                 handleDragging(clientX, clientY);
             } else if (isPanning) {
@@ -1270,7 +1660,6 @@
 
         function endPointerInteraction(clientX, clientY, e) {
             if (stage === 2 && draggedPlanet) checkStage2Escape(draggedPlanet);
-
             if (!pointerHasMoved) {
                 const now = Date.now();
                 const dist = Math.hypot(clientX - lastTapX, clientY - lastTapY);
@@ -1281,19 +1670,13 @@
                     lastTapTime = now; lastTapX = clientX; lastTapY = clientY;
                 }
             }
-
             draggedPlanet = null; dragActive = false; isPanning = false; activePointerId = null;
         }
 
-        // ── Pointer event listeners ──
         renderer.domElement.addEventListener('pointerdown', e => {
             if (activePointerId !== null && e.pointerId !== activePointerId) return;
             if (isUIElement(e.target)) return;
-
-            // On mobile, tapping the simulation closes the camera panel first.
-            // The tap still continues into the simulation, so dragging/selecting remains possible.
             closeCameraPanelIfOpen();
-
             activePointerId = e.pointerId;
             try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) { }
             e.preventDefault();
@@ -1313,26 +1696,22 @@
             endPointerInteraction(e.clientX, e.clientY, e);
         }, { passive: false });
 
-        // FIX 6: pointercancel always resets, regardless of pointerId match
         renderer.domElement.addEventListener('pointercancel', e => {
             try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) { }
             draggedPlanet = null; dragActive = false; isPanning = false; activePointerId = null;
         });
 
-        // Desktop dblclick
         renderer.domElement.addEventListener('dblclick', e => {
             if (!isFinePointer) return;
             handleDoubleAction(e.clientX, e.clientY);
         });
 
-        // Wheel zoom
         renderer.domElement.addEventListener('wheel', e => {
             targetRadius = Math.max(300, Math.min(6000, targetRadius + e.deltaY * 1.2));
             autoFollow = false;
             e.preventDefault();
         }, { passive: false });
 
-        // Resize + orientation
         function handleResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -1344,12 +1723,6 @@
 
         // ═══════════════════════════════════════════════════
         //  CAMERA UI
-        //  FIX 2: resetCamera() is stage-aware.
-        //         In Stage 1 it restores the tuned default side view.
-        //         In other stages it restores the neutral default camera.
-        //         Stage 1 camera values are set explicitly in setStage(1),
-        //         not via resetCamera(), so calling resetCamera() from any stage
-        //         always applies the neutral default values.
         // ═══════════════════════════════════════════════════
         function setOrbitView(dir) {
             const views = { north: 0, east: Math.PI / 2, south: Math.PI, west: Math.PI * 1.5 };
@@ -1380,8 +1753,8 @@
         //  STAGE MANAGEMENT
         // ═══════════════════════════════════════════════════
         function clearScene() {
-            for (const p of planets) removePlanetFromScene(p);
-            for (const p of lostPlanets) removePlanetFromScene(p);
+            for (const p of planets) removePlanetFromScene(p, true);
+            for (const p of lostPlanets) removePlanetFromScene(p, true);
             for (const k in labelEls) labelEls[k].style.display = 'none';
             planets = []; lostPlanets = []; selectedPlanets = []; sunObj = null;
         }
@@ -1395,7 +1768,7 @@
             const $ = id => document.getElementById(id);
             $('landing-hub').style.display = s === 0 ? 'block' : 'none';
             $('ui-header').style.display = s === 0 ? 'none' : 'block';
-            cameraPanelOpen = false; // cockpit managed by updateCameraPanelVisibility
+            cameraPanelOpen = false;
             $('custom-panel').style.visibility = s === 3 ? 'visible' : 'hidden';
             $('hint').style.display = s === 3 ? 'block' : 'none';
             $('hint-s1').style.display = s === 1 ? 'block' : 'none';
@@ -1403,7 +1776,6 @@
             $('btn-play').innerText = '▶ Play';
             $('escaped-box').style.visibility = 'hidden';
 
-            // FIX 2: always reset to neutral first, then apply stage-specific overrides below
             resetCamera();
 
             if (s === 0) {
@@ -1413,6 +1785,9 @@
                 addPlanet(-300, 0, 65, '#ff44ff', 'P2', 'circle', 300, true);
                 updateGrid();
                 for (const p of planets) syncMeshPosition(p);
+                // FIX: Ensure orbit rings are rebuilt with correct Y after sync.
+                markAllOrbitsDirty();
+                for (const p of planets) updateOrbitRing(p);
                 updateCameraPosition();
                 updateCameraPanelVisibility();
                 return;
@@ -1424,7 +1799,6 @@
                 addPlanet(Math.cos(a) * d.r, Math.sin(a) * d.r, d.m, hexColor(d.c), d.name, 'circle', d.r, true);
             });
 
-            // Stage-specific camera overrides (applied AFTER resetCamera)
             if (s === 1) {
                 targetTheta = 0; targetPhi = 1.48; targetRadius = 2400;
                 targetCamX = -220; targetCamY = 0; camX = -220;
@@ -1437,19 +1811,18 @@
                 refreshSelectionVisuals();
             }
 
-            // Force immediate mesh sync so hit-testing is accurate at stage load
             updateGrid();
             for (const p of planets) syncMeshPosition(p);
+            // FIX: Force a full orbit ring rebuild pass after positions are synced,
+            // so rings use per-planet radius and match planet centre heights from the start.
+            markAllOrbitsDirty();
+            for (const p of planets) updateOrbitRing(p);
             updateCameraPosition();
             updateLabels();
             renderer.render(scene, camera);
-
             updateCameraPanelVisibility();
         }
 
-        // ═══════════════════════════════════════════════════
-        //  PLAY / PAUSE
-        // ═══════════════════════════════════════════════════
         function togglePlay() {
             const was = isPlaying;
             isPlaying = !isPlaying;
@@ -1474,8 +1847,6 @@
 
         // ═══════════════════════════════════════════════════
         //  UI HELPERS
-        //  FIX 10: updateTarget uses geometry.dispose + reassign (same as updateOrbitRing),
-        //          not scene.remove/add for orbit rings.
         // ═══════════════════════════════════════════════════
         function updateTarget() {
             if (!selectedPlanets.length) return;
@@ -1483,33 +1854,64 @@
             const c = document.getElementById('colorPicker').value;
             const sh = document.getElementById('shapeSelect').value;
             selectedPlanets.forEach(p => {
+                const massChanged = p.mass !== m;
+                const colorChanged = p.color !== c;
+
                 p.mass = m; p.color = c;
                 if (p !== sunObj) p.shape = sh;
-                const col = threeColor(c);
-                p.mesh.material.color.set(col);
-                p.mesh.material.emissive.set(col.clone().multiplyScalar(p === sunObj ? 0.6 : 0.25));
-                // Rebuild glow sprite
+
                 scene.remove(p.glow);
-                p.glow = makeGlowSprite(c, m * 0.45); scene.add(p.glow);
-                // Resize sphere geometry
+                if (p.glow.material && p.glow.material.map) p.glow.material.map.dispose();
+                if (p.glow.material) p.glow.material.dispose();
+                p.glow = makeGlowSprite(p.name, c, m * 0.45);
+                scene.add(p.glow);
+
                 p.mesh.geometry.dispose();
-                p.mesh.geometry = new THREE.SphereGeometry(m * 0.45, 32, 24);
-                // FIX 10: update orbit ring using dispose+reassign, not remove+add
+                p.mesh.geometry = new THREE.SphereGeometry(m * 0.45, 48, 32);
+
+                const isCustom = !SOLAR.some(s => s.name === p.name) && p.name !== 'SUN';
+                if (isCustom && colorChanged) {
+                    if (p.mesh.material && p.mesh.material.map) p.mesh.material.map.dispose();
+                    if (p.mesh.material) p.mesh.material.dispose();
+                    p.mesh.material = createPlanetMaterial(p.name, c);
+                } else {
+                    p.mesh.material.color.set(c);
+                }
+
+                const wasVisible = p.selRing.visible;
+                p.mesh.remove(p.selRing);
+                p.selRing.geometry.dispose();
+                p.selRing.material.dispose();
+                p.selRing = makeSelectionRing(m * 0.45);
+                p.selRing.visible = wasVisible;
+                p.mesh.add(p.selRing);
+
+                if (p.name === 'Saturn' && massChanged) {
+                    removePlanetExtrasFromScene(p, true);
+                    p._extrasBaseRadius = m * 0.45;
+                    p.extras = createPlanetExtras(p.name, m);
+                    if (p.extras && p.extras.ring) scene.add(p.extras.ring);
+                }
+
                 if (p.orbitRing && p !== sunObj) {
                     p.orbitRing.geometry.dispose();
-                    p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary);
+                    p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary, p);
                     p.orbitRing.material.opacity = p.selRing.visible ? 0.65 : 0.12;
                     p._orbitDirty = false;
                 }
             });
-            markAllOrbitsDirty(); // mass/shape change affects fabric for all rings
+            markAllOrbitsDirty();
             updateCustomPanel(selectedPlanets[selectedPlanets.length - 1]);
         }
 
         function deleteTarget() {
             selectedPlanets.forEach(p => {
                 if (p === sunObj) return;
-                removePlanetFromScene(p);
+                removePlanetFromScene(p, true);
+                if (p.mesh.material && p.mesh.material.map) p.mesh.material.map.dispose();
+                if (p.mesh.material) p.mesh.material.dispose();
+                if (p.mesh.geometry) p.mesh.geometry.dispose();
+                if (p.selRing) { p.selRing.geometry.dispose(); p.selRing.material.dispose(); }
                 planets = planets.filter(pl => pl !== p);
             });
             selectedPlanets = [sunObj]; refreshSelectionVisuals();
@@ -1548,52 +1950,66 @@
         }
 
         function restoreSystem() {
+            if (!lostPlanets.length) return;
             isPlaying = false; speedFactor = 0;
             document.getElementById('btn-play').innerText = '▶ Play';
+
             lostPlanets.forEach(p => {
+                if (planets.includes(p)) return;
+
                 p.mass = p.initialMass; p.color = p.initialColor; p.shape = p.initialShape;
                 p.dist = p.initialR; p.angle = p.initialAngle;
                 p.x = sunObj.x + Math.cos(p.angle) * p.dist;
                 p.z = sunObj.z + Math.sin(p.angle) * p.dist;
-                const v = Math.sqrt(G * sunObj.mass / p.dist);
+                const v = Math.sqrt(G * sunObj.mass / Math.max(p.dist, 10));
                 p.vx = -Math.sin(p.angle) * v; p.vz = Math.cos(p.angle) * v;
                 p.primary = sunObj; p.basePrimaryMass = sunObj.mass;
                 p.isDynamic = false; p.history = [];
-                // Rebuild orbit ring geometry safely (geometry was not disposed on escape)
+                p.w = Math.sqrt(G * sunObj.mass / Math.pow(Math.max(p.dist, 10), 3));
+
                 if (p.orbitRing) {
                     p.orbitRing.geometry.dispose();
-                    p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary);
+                    p.orbitRing.geometry = buildOrbitRingGeo(p.dist, p.shape, p.primary, p);
                     p.orbitRing.position.set(0, 0, 0);
                     p._orbitDirty = false;
                 }
-                scene.add(p.mesh); scene.add(p.glow);
+
+                scene.add(p.mesh);
+                scene.add(p.glow);
                 if (p.orbitRing) scene.add(p.orbitRing);
+
+                recreatePlanetExtrasIfMissing(p);
+                if (p.extras && p.extras.ring) {
+                    if (!scene.children.includes(p.extras.ring)) {
+                        scene.add(p.extras.ring);
+                    }
+                }
+
                 if (labelEls[p.name]) labelEls[p.name].style.display = 'block';
                 planets.push(p);
             });
+
             lostPlanets = [];
             updateLostList();
+            for (const p of planets) syncMeshPosition(p);
         }
 
         document.oncontextmenu = () => false;
 
         // ═══════════════════════════════════════════════════
         //  RENDER LOOP
-        //  FIX 7: Sun light Y computed from actual mesh world position.
-        //  FIX 9: frameCount removed — orbit rings rebuild only when dirty flag set.
         // ═══════════════════════════════════════════════════
         const _sunWorld = new THREE.Vector3();
 
         function animate() {
             requestAnimationFrame(animate);
-            const dt = clock.getDelta(); // single call per frame
+            const dt = Math.min(clock.getDelta(), 0.1);
 
             if (isPlaying) {
                 speedFactor = Math.min(1.0, speedFactor + dt / 3);
                 updatePhysics();
             }
 
-            // Smooth camera
             camTheta += (targetTheta - camTheta) * 0.08;
             camPhi += (targetPhi - camPhi) * 0.08;
             camRadius += (targetRadius - camRadius) * 0.08;
@@ -1604,10 +2020,12 @@
             for (const p of planets) {
                 if (autoFollow && p === sunObj) { targetCamX = p.x; }
                 syncMeshPosition(p);
-                updateOrbitRing(p); // no-ops if not dirty
+                if (p.spinRate !== undefined) {
+                    p.mesh.rotation.y += p.spinRate * dt;
+                }
+                updateOrbitRing(p);
             }
 
-            // FIX 7: position sun light above the mesh's actual world Y
             if (sunObj) {
                 sunObj.mesh.getWorldPosition(_sunWorld);
                 sunLight.position.set(_sunWorld.x, _sunWorld.y + 200, _sunWorld.z);
