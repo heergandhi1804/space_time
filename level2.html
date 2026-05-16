@@ -357,39 +357,83 @@
             #escaped-box {
                 left: auto;
                 right: 8px;
-                bottom: 8px;
-                transform: none;
-                width: 160px;
             }
+        }
+
         @media(max-width:768px) {
-            #landing-hub h1 { font-size: 1.8em; }
-            #ui-header { padding: 10px; flex-wrap: wrap; justify-content: center; }
-            .nav { gap: 6px; }
-            .btn { padding: 10px 14px; min-height: 44px; }
-            #stage1-panel, #stage2-panel, #stage3-panel {
-                width: 90% !important; left: 5% !important; bottom: 20px !important; top: auto !important; transform: none !important;
-                max-height: 40vh;
+                #landing-hub h1 {
+                    font-size: 1.8em;
+                }
+
+                #ui-header {
+                    padding: 10px;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                }
+
+                .nav {
+                    gap: 6px;
+                }
+
+                .btn {
+                    padding: 10px 14px;
+                    min-height: 44px;
+                }
+
+                #stage1-panel,
+                #stage2-panel,
+                #stage3-panel {
+                    width: 90% !important;
+                    left: 5% !important;
+                    bottom: 20px !important;
+                    top: auto !important;
+                    transform: none !important;
+                    max-height: 40vh;
+                }
+
+                #cockpit {
+                    display: none;
+                }
+
+                .planet-label {
+                    font-size: 10px;
+                }
             }
-            #cockpit { display: none; }
-            .planet-label { font-size: 10px; }
-        }
-        .zoom-controls {
-            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
-            display: flex; flex-direction: column; gap: 12px; z-index: 100;
-        }
-        .zoom-btn {
-            width: 54px; height: 54px; border-radius: 50%;
-            background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.2);
-            font-size: 28px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; backdrop-filter: blur(8px);
-        }
+
+            .zoom-controls {
+                position: absolute;
+                right: 20px;
+                top: 50%;
+                transform: translateY(-50%);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                z-index: 100;
+            }
+
+            .zoom-btn {
+                width: 54px;
+                height: 54px;
+                border-radius: 50%;
+                background: rgba(0, 0, 0, 0.6);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                font-size: 28px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                backdrop-filter: blur(8px);
+            }
     </style>
 </head>
 
 <body>
     <div class="zoom-controls">
-        <button class="zoom-btn" onclick="targetRadius = Math.max(500, targetRadius - 400); autoFollow=false;">+</button>
-        <button class="zoom-btn" onclick="targetRadius = Math.min(8000, targetRadius + 400); autoFollow=false;">−</button>
+        <button class="zoom-btn"
+            onclick="targetRadius = Math.max(500, targetRadius - 400); autoFollow=false;">+</button>
+        <button class="zoom-btn"
+            onclick="targetRadius = Math.min(8000, targetRadius + 400); autoFollow=false;">−</button>
     </div>
 
     <div id="landing-hub">
@@ -400,16 +444,21 @@
             <button class="btn" id="btn-1" onclick="setStage(1)">1 · Spin around Space</button>
             <button class="btn" id="btn-2" onclick="setStage(2)">2 · Solar Playground</button>
             <button class="btn" id="btn-3" onclick="setStage(3)">3 · Create your Universe</button>
-            <a href="index.html" class="btn" style="background:#3a4a5a; color:white; text-decoration:none; margin-top:20px; display:flex; align-items:center; justify-content:center;">← Back to Level Selection</a>
+            <a href="index.html" class="btn"
+                style="background:#3a4a5a; color:white; text-decoration:none; margin-top:20px; display:flex; align-items:center; justify-content:center;">←
+                Back to Level Selection</a>
         </div>
     </div>
 
     <div id="toast">⏸ Pause before moving objects!</div>
-    <canvas id="fx-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10"></canvas>
+    <canvas id="fx-canvas"
+        style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10"></canvas>
 
     <div id="ui-header" style="display:none">
         <div class="nav">
-            <a href="index.html" class="btn" style="background:#555;color:white;text-decoration:none;display:inline-flex;align-items:center;">⌂ Menu</a>
+            <a href="index.html" class="btn"
+                style="background:#555;color:white;text-decoration:none;display:inline-flex;align-items:center;">⌂
+                Menu</a>
             <button class="btn" onclick="setStage(0)" style="background:#ff6666;color:white">← Hub</button>
             <button class="btn" id="btn-play" onclick="togglePlay()"
                 style="background:#88ff88;color:black;display:none">▶ Play</button>
