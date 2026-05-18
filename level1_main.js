@@ -251,21 +251,17 @@ function createOrbitRing(p) {
 // --- PHYSICS ---
 function updatePhysics(dt) {
     // Stage 3 (Solar System) physics only — stage 1/2 use updateStage1Physics directly
+    // Only the central sun attracts planets; no planet-to-planet gravity.
     const subs = 8, stepDt = (dt * 140 * getStage2SpeedMultiplier()) / subs;
     for (let s = 0; s < subs; s++) {
         for (const p of planets) {
-            if (p === sunObj || !p.stage2Modified) continue;
-            let ax = 0, az = 0;
-            for (const o of planets) {
-                if (o === p) continue;
-                const dx = o.x - p.x, dz = o.z - p.z;
-                const r = Math.max(Math.hypot(dx, dz), 15);
-                const gravityScale = o === sunObj ? 1.0 : 0.06;
-                let f = G * o.mass * gravityScale / (r * r);
-                f = Math.min(f, 20000);
-                ax += f * dx / r; az += f * dz / r;
-            }
-            p.vx += ax * stepDt; p.vz += az * stepDt;
+            if (p === sunObj || !p.stage2Modified || !sunObj) continue;
+            const dx = sunObj.x - p.x, dz = sunObj.z - p.z;
+            const r = Math.max(Math.hypot(dx, dz), 15);
+            let f = G * sunObj.mass / (r * r);
+            f = Math.min(f, 20000);
+            const ux = dx / r, uz = dz / r;
+            p.vx += f * ux * stepDt; p.vz += f * uz * stepDt;
             p.x += p.vx * stepDt; p.z += p.vz * stepDt;
         }
     }
@@ -282,34 +278,20 @@ function updatePhysics(dt) {
 }
 
 function checkPlanetCrashes() {
+    // Only check planet-vs-sun crashes. Planet-to-planet deletion is disabled so
+    // Venus and Earth (and dragged planets) can overlap without disappearing.
     if (!isPlaying || stage === 1 || !sunObj) return;
     for (let i = planets.length - 1; i >= 0; i--) {
         const p = planets[i]; if (p === sunObj) continue;
-        if (!(stage === 2 && !p.stage2Modified)) {
-            const dSun = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
-            if (dSun < (p.mass * 0.45) + (sunObj.mass * 0.45) + 8) {
-                const s = projectToScreen(p.x, 0, p.z);
-                if (s.visible) {
-                    spawnParticles(s.x, s.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true, huge: true });
-                    showFloatingMessage('Crash!', '#ffb080');
-                }
-                removePlanetFromScene(p); planets.splice(i, 1); continue;
+        if (stage === 2 && !p.stage2Modified) continue; // kinematic stage-2 never actually hits sun
+        const dSun = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
+        if (dSun < (p.mass * 0.45) + (sunObj.mass * 0.45) + 8) {
+            const s = projectToScreen(p.x, 0, p.z);
+            if (s.visible) {
+                spawnParticles(s.x, s.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true, huge: true });
+                showFloatingMessage('Crash!', '#ffb080');
             }
-        }
-        for (let j = i - 1; j >= 0; j--) {
-            const q = planets[j]; if (q === sunObj) continue;
-            // Skip collision between two undisturbed kinematic planets (they never physically meet)
-            if (!p.stage2Modified && !q.stage2Modified) continue;
-            if (Math.hypot(p.x - q.x, p.z - q.z) < (p.mass * 0.45) + (q.mass * 0.45) + 6) {
-                const s = projectToScreen((p.x + q.x) / 2, 0, (p.z + q.z) / 2);
-                if (s.visible) {
-                    spawnParticles(s.x, s.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true, huge: true });
-                    showFloatingMessage('Crash!', '#ffb080');
-                }
-                removePlanetFromScene(p); planets.splice(i, 1);
-                removePlanetFromScene(q); planets.splice(j, 1);
-                break;
-            }
+            removePlanetFromScene(p); planets.splice(i, 1);
         }
     }
 }
@@ -480,7 +462,12 @@ renderer.domElement.addEventListener('pointerdown', e => {
 
 window.addEventListener('pointermove', e => {
     if (draggedPlanet) {
-        const { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
+        let { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
+        // Clamp drag to blanket bounds in stages 1/2 only
+        if (stage === 1 || stage === 2) {
+            wx = Math.max(-S1_PLACE_LIMIT, Math.min(S1_PLACE_LIMIT, wx));
+            wz = Math.max(-S1_PLACE_LIMIT, Math.min(S1_PLACE_LIMIT, wz));
+        }
         if (stage === 2) draggedPlanet.stage2Modified = true;
         draggedPlanet.x = wx; draggedPlanet.z = wz;
         syncMeshPosition(draggedPlanet); updateGrid();
@@ -528,9 +515,17 @@ window.addEventListener('pointerup', e => {
 
 function getWorldXZ(cx, cy) {
     mouse2d.set((cx / window.innerWidth) * 2 - 1, -(cy / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(mouse2d, camera);
+    // For stages 1/2, raycast against the actual blanket mesh for accurate
+    // surface placement even when the camera is tilted and the blanket is warped.
+    if ((stage === 1 || stage === 2) && blanketMesh) {
+        const hits = raycaster.intersectObject(blanketMesh);
+        if (hits.length > 0) return { x: hits[0].point.x, z: hits[0].point.z };
+    }
+    // Fallback: intersect y=0 plane
     const dp = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const pt = new THREE.Vector3();
-    raycaster.setFromCamera(mouse2d, camera); raycaster.ray.intersectPlane(dp, pt);
+    raycaster.ray.intersectPlane(dp, pt);
     return { x: pt.x, z: pt.z };
 }
 

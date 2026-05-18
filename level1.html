@@ -326,20 +326,14 @@
 
         <button class="action-btn danger" style="margin-top:6px;" onclick="resetStage3SolarSystem()">↺ Reset Solar System</button>
 
-        <div class="panel-title" style="margin-top:6px;">View</div>
-        <div class="preset-grid two-col">
-            <button class="preset-btn" onclick="setTiltView('top')">Top View</button>
-            <button class="preset-btn" onclick="setTiltView('side')">Side View</button>
-        </div>
-        <button class="action-btn" onclick="resetCamera()">⌖ Reset View</button>
     </div>
 
     <!-- ═══ L1S2 DIRECTION OVERLAY ═══ -->
     <div id="s2-dir-overlay">
         <div class="dir-title">Which way should it go?</div>
-        <button onclick="s2ChooseDirection('go_around')">↺ Goes around<br><span style="font-size:.78em;opacity:.7">Circles the center</span></button>
-        <button onclick="s2ChooseDirection('curve_in')">↗ Curves inward<br><span style="font-size:.78em;opacity:.7">Spirals toward center</span></button>
-        <button onclick="s2ChooseDirection('zoom_out')">🚀 Zoom outward<br><span style="font-size:.78em;opacity:.7">May escape!</span></button>
+        <button onclick="s2ChooseDirection('go_around')">↺ Go around<br><span style="font-size:.78em;opacity:.7">Tries to move around the center</span></button>
+        <button onclick="s2ChooseDirection('curve_in')">↗ Curve inward<br><span style="font-size:.78em;opacity:.7">Starts moving toward the center</span></button>
+        <button onclick="s2ChooseDirection('zoom_out')">🚀 Zoom outward<br><span style="font-size:.78em;opacity:.7">Starts moving away fast</span></button>
         <button style="background:rgba(255,80,80,.18);border-color:rgba(255,80,80,.35);" onclick="s2CancelPlacement()">✕ Cancel</button>
     </div>
 

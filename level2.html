@@ -232,8 +232,7 @@
                 <input type="text" id="s3-p-name" placeholder="optional"
                     style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:4px 8px;font-size:.82em;min-width:0;">
             </div>
-            <button class="s3-btn place" onclick="s3StartPlacing()">📍 Tap Blanket to Place</button>
-            <p class="note-text">After placing, choose which direction the planet moves.</p>
+            <p class="note-text">Tap the grid to place a planet, then choose its direction.</p>
             <p class="note-text" style="color:#5577aa;">Only the central object pulls on planets — planets don't attract each other.</p>
 
             <hr class="s3-divider">
@@ -247,13 +246,13 @@
     <div id="s3-dir-overlay">
         <div class="dir-title">Which way should it go?</div>
         <button onclick="s3ChooseDirection('go_around')">
-            ↺ Go around<span class="dir-sub">Circles the center</span>
+            ↺ Go around<span class="dir-sub">Tries to move around the center</span>
         </button>
         <button onclick="s3ChooseDirection('curve_in')">
-            ↗ Curve inward<span class="dir-sub">Spirals toward center</span>
+            ↗ Curve inward<span class="dir-sub">Starts moving toward the center</span>
         </button>
         <button onclick="s3ChooseDirection('zoom_out')">
-            🚀 Zoom outward<span class="dir-sub">May escape!</span>
+            🚀 Zoom outward<span class="dir-sub">Starts moving away fast</span>
         </button>
         <button class="dir-cancel" onclick="s3CancelPlacement()">✕ Cancel</button>
     </div>

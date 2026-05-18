@@ -156,8 +156,10 @@ function s3CancelPlacement() {
         planets = planets.filter(p => p !== s3PendingPlanet);
         s3PendingPlanet = null;
     }
-    s3PlacingMode = false;
     hideS3DirOverlay();
+    // Re-enter placing mode automatically so the user can tap a different spot
+    const n = planets.filter(p => p !== sunObj).length;
+    s3PlacingMode = sunObj != null && n < 10;
 }
 
 // ─── Customization panel for selected planet ─────────────────────────────
