@@ -1,123 +1,276 @@
-// level2_stage3.js
-// Stage 3 logic for Level 2: Create your Universe
+// level2_stage3.js — Stage 3: Sandbox Universe
+
+let s3PlacingMode = false;
+let s3PendingPlanet = null; // awaiting direction choice
+let _s3PlanetCounter = 0;
+
+// ─── Wizard ──────────────────────────────────────────────────────────────
 
 function resetStage3() {
     if (isPlaying) return showToast();
     planets.forEach(p => removePlanetFromScene(p));
     planets = [];
     sunObj = null;
-    document.getElementById('s3-step1').style.display = 'flex';
-    document.getElementById('s3-step2').style.display = 'none';
+    _s3PlanetCounter = 0;
+    s3PlacingMode = false;
+    s3PendingPlanet = null;
+    hideS3DirOverlay();
     lostPlanets = [];
     updateLostList();
+    _showS3Step(1);
     showToast('Universe Reset');
+}
+
+function _showS3Step(n) {
+    const s1 = document.getElementById('s3-step1');
+    const s2 = document.getElementById('s3-step2');
+    if (s1) s1.style.display = n === 1 ? 'flex' : 'none';
+    if (s2) s2.style.display = n === 2 ? 'flex' : 'none';
 }
 
 function s3CreateSun() {
     if (isPlaying) return showToast();
-    const m = parseInt(document.getElementById('s3-sun-mass').value);
+    const mEl = document.getElementById('s3-sun-mass');
+    const cEl = document.getElementById('s3-sun-color');
+    const m = mEl ? Math.max(60, Math.min(600, parseInt(mEl.value))) : 200;
+    const c = cEl ? parseInt(cEl.value.replace('#',''), 16) : 0xFFD700;
+
+    // Remove old central object
+    if (sunObj) { removePlanetFromScene(sunObj); planets = planets.filter(p => p !== sunObj); }
+
+    // makeSun already adds mesh/glow to scene — just push to planets
     sunObj = makeSun(m);
+    sunObj.mesh.material.color.setHex(c); // tint with chosen color
+    planets.push(sunObj);
     syncMeshPosition(sunObj);
-    document.getElementById('s3-step1').style.display = 'none';
-    document.getElementById('s3-step2').style.display = 'flex';
-    showToast('Central Sphere Created');
+    _showS3Step(2);
+    // Auto-enter placing mode so user can tap immediately without pressing a button
+    s3PlacingMode = true;
+    showFloatingMessage('Central Object created! Tap the blanket to place a planet.', '#aaffaa');
 }
 
-function s3AddPlanet(type) {
+function s3StartPlacing() {
     if (isPlaying) return showToast();
-    if (!sunObj) return;
+    if (!sunObj) return showToast('Create central object first!');
+    s3PlacingMode = true;
     const n = planets.filter(p => p !== sunObj).length;
-    if (n >= 10) return showToast('Limit reached!');
-    const config = { small: [30, '#6081FF'], medium: [65, '#E3BB76'], heavy: [120, '#D39C7E'], rogue: [25, '#ffffff'] }[type];
-    const r = 400 + n * 240;
-    const a = n * 0.8;
-    const p = addPlanet(sunObj.x + Math.cos(a) * r, sunObj.z + Math.sin(a) * r, config[0], config[1], 'Planet ' + (n + 1), 'circle', r);
-    p.isDynamic = true;
-    showToast(type + ' planet added');
+    if (n >= 10) { s3PlacingMode = false; return showToast('Limit reached!'); }
+    showToast('Tap the blanket to place a planet');
 }
 
-function s3AddShape(shape) {
-    if (isPlaying) return showToast();
+function s3PlacePlanet(wx, wz) {
     if (!sunObj) return;
     const n = planets.filter(p => p !== sunObj).length;
-    const r = 450 + n * 220;
-    const a = n * 1.1;
-    const p = addPlanet(sunObj.x + Math.cos(a) * r, sunObj.z + Math.sin(a) * r, 50, '#a0ffc0', 'Object ' + (n + 1), shape, r);
+    if (n >= 10) { s3PlacingMode = false; return showToast('Limit reached!'); }
+
+    // Clamp to grid bounds
+    const maxBound = 4200;
+    wx = Math.max(-maxBound, Math.min(maxBound, wx));
+    wz = Math.max(-maxBound, Math.min(maxBound, wz));
+
+    // Read current customization values
+    const mEl = document.getElementById('s3-p-mass');
+    const cEl = document.getElementById('s3-p-color');
+    const sEl = document.getElementById('s3-p-size');
+    const nEl = document.getElementById('s3-p-name');
+    const mass = mEl ? Math.max(20, Math.min(200, parseInt(mEl.value))) : 55;
+    const colorHex = cEl ? cEl.value : '#6ce0ff';
+    const sizeScale = sEl ? parseFloat(sEl.value) : 1.0;
+    const visualMass = mass * sizeScale;
+
+    // Clamp to safe distance from central mass
+    const dx = wx - sunObj.x, dz = wz - sunObj.z;
+    let dist = Math.hypot(dx, dz);
+    const minDist = (sunObj.mass * 0.45) + (visualMass * 0.45) + 100;
+    if (dist < minDist) {
+        dist = minDist;
+        const ang = Math.atan2(dz, dx);
+        wx = sunObj.x + Math.cos(ang) * dist;
+        wz = sunObj.z + Math.sin(ang) * dist;
+    }
+
+    _s3PlanetCounter++;
+    const customName = nEl && nEl.value.trim() ? nEl.value.trim() : '';
+    const name = customName || ('Planet ' + _s3PlanetCounter);
+    if (nEl) nEl.value = ''; // clear name input for next planet
+    const p = addPlanet(wx, wz, visualMass, colorHex, name, 'circle', dist);
     p.isDynamic = true;
-    showToast(shape + ' added');
+    p.vx = 0; p.vz = 0; // velocity set after direction choice
+    syncMeshPosition(p);
+
+    s3PlacingMode = false;
+    s3PendingPlanet = p;
+    showS3DirOverlay(wx, wz, p);
 }
+
+// ─── Direction Overlay ────────────────────────────────────────────────────
+
+function showS3DirOverlay(wx, wz, planet) {
+    const overlay = document.getElementById('s3-dir-overlay');
+    if (!overlay) return;
+    const scr = projectToScreen(wx, 0, wz);
+    const px = scr.visible ? scr.x : window.innerWidth / 2;
+    const py = scr.visible ? scr.y : window.innerHeight / 2;
+    overlay.style.left = Math.min(Math.max(px - 90, 10), window.innerWidth - 190) + 'px';
+    overlay.style.top  = Math.min(Math.max(py - 70, 70), window.innerHeight - 130) + 'px';
+    overlay.style.display = 'flex';
+}
+
+function hideS3DirOverlay() {
+    const overlay = document.getElementById('s3-dir-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function s3ChooseDirection(type) {
+    const p = s3PendingPlanet;
+    if (!p || !sunObj) { hideS3DirOverlay(); return; }
+    const dx = p.x - sunObj.x, dz = p.z - sunObj.z;
+    const dist = Math.hypot(dx, dz);
+    const ux = dx / Math.max(dist, 1), uz = dz / Math.max(dist, 1);
+    // Circular speed at this distance
+    const vCirc = Math.sqrt(G * sunObj.mass / Math.max(dist, 10));
+    const tx = -uz, tz = ux; // tangential (clockwise)
+    if (type === 'go_around') {
+        p.vx = tx * vCirc; p.vz = tz * vCirc;
+    } else if (type === 'curve_in') {
+        // 45° between tangential and inward — elliptical, dips closer
+        const inx = -ux, inz = -uz;
+        p.vx = (tx + inx) * 0.707 * vCirc * 0.85;
+        p.vz = (tz + inz) * 0.707 * vCirc * 0.85;
+    } else if (type === 'zoom_out') {
+        // faster than circular — will escape or form outer ellipse
+        p.vx = tx * vCirc * 1.4; p.vz = tz * vCirc * 1.4;
+    }
+    p.stage2Modified = true;
+    s3PendingPlanet = null;
+    hideS3DirOverlay();
+    showFloatingMessage('Planet added!', '#ffd089');
+    // Auto-re-enter placing mode for next planet
+    const _n = planets.filter(q => q !== sunObj).length;
+    if (_n < 10) s3PlacingMode = true;
+}
+
+function s3CancelPlacement() {
+    if (s3PendingPlanet) {
+        removePlanetFromScene(s3PendingPlanet);
+        planets = planets.filter(p => p !== s3PendingPlanet);
+        s3PendingPlanet = null;
+    }
+    s3PlacingMode = false;
+    hideS3DirOverlay();
+}
+
+// ─── Customization panel for selected planet ─────────────────────────────
+
+function s3UpdateSelected() {
+    if (!selectedPlanets.length) return;
+    const mEl = document.getElementById('s3-edit-mass');
+    const cEl = document.getElementById('s3-edit-color');
+    const m = mEl ? Math.max(20, Math.min(200, parseInt(mEl.value))) : null;
+    const c = cEl ? cEl.value : null;
+    selectedPlanets.forEach(p => {
+        if (p === sunObj) return;
+        if (m !== null) {
+            p.mass = m;
+            p.mesh.geometry.dispose();
+            p.mesh.geometry = new THREE.SphereGeometry(m * 0.45, 48, 32);
+        }
+        if (c !== null) { p.color = c; p.mesh.material.color.set(c); }
+    });
+}
+
+function s3DeleteSelected() {
+    selectedPlanets.forEach(p => {
+        if (p === sunObj) return;
+        removePlanetFromScene(p);
+        planets = planets.filter(x => x !== p);
+    });
+    selectedPlanets = [];
+    const ep = document.getElementById('s3-edit-panel');
+    if (ep) ep.style.display = 'none';
+}
+
+function s3ShowEditPanel(p) {
+    const ep = document.getElementById('s3-edit-panel');
+    if (!ep || !p || p === sunObj) return;
+    const mEl = document.getElementById('s3-edit-mass');
+    const mvEl = document.getElementById('s3-edit-mass-val');
+    const cEl = document.getElementById('s3-edit-color');
+    const spEl = document.getElementById('s3-edit-speed');
+    if (mEl) { mEl.value = p.mass; }
+    if (mvEl) mvEl.textContent = Math.round(p.mass);
+    if (cEl) {
+        const h = typeof p.color === 'number' ? '#' + p.color.toString(16).padStart(6,'0') : (p.color || '#ffffff');
+        cEl.value = h.slice(0,7);
+    }
+    if (spEl && sunObj) {
+        const dx = p.x - sunObj.x, dz = p.z - sunObj.z;
+        const dist = Math.hypot(dx, dz);
+        const v = p.stage2Modified
+            ? Math.hypot(p.vx, p.vz).toFixed(1)
+            : Math.sqrt(G * sunObj.mass / Math.max(dist, 1)).toFixed(1);
+        spEl.textContent = 'Speed: ' + v + ' u/s';
+    }
+    ep.style.display = 'flex';
+}
+
+function s3HideEditPanel() {
+    const ep = document.getElementById('s3-edit-panel');
+    if (ep) ep.style.display = 'none';
+    selectedPlanets.forEach(p => { if (p.selRing) p.selRing.visible = false; });
+    selectedPlanets = [];
+}
+
+// ─── Physics (N-body, central mass only) ─────────────────────────────────
 
 function updateStage3Physics(dt) {
-    // Stage 3 — N-body
-    for (const p of planets) {
-        if (p === sunObj || p.isDynamic || !p.primary) continue;
-        let trigger = (p === draggedPlanet);
-        if (!trigger && Math.abs(p.primary.mass - p.basePrimaryMass) / p.basePrimaryMass > 0.1) trigger = true;
-        if (!trigger) {
-            const pp = G * p.primary.mass / Math.max(p.dist * p.dist, 1), th = pp * 0.05;
-            for (const o of planets) {
-                if (o === p || o === p.primary) continue;
-                if (o.isOriginal && o.mass === o.initialMass) continue;
-                const d = Math.max(Math.hypot(p.x - o.x, p.z - o.z), 5);
-                if (G * o.mass / (d * d) > th) { trigger = true; break; }
-            }
+    // Only the central object (sunObj) exerts gravity on orbiting bodies.
+    // Planet-to-planet gravity is intentionally disabled to keep the sim educational.
+    const SUBSTEPS = 10;
+    // Scale so orbits are visibly animated; SURFACE_OFFSET (300) used as a scene-scale reference
+    const step = (dt * speedFactor * 210) / SUBSTEPS;
+
+    for (let s = 0; s < SUBSTEPS; s++) {
+        for (const p of planets) {
+            if (p === sunObj || !p.isDynamic || p === draggedPlanet) continue;
+            if (!sunObj) continue;
+            const dx = sunObj.x - p.x, dz = sunObj.z - p.z;
+            const r = Math.max(Math.hypot(dx, dz), 10);
+            // GM/r² gravitational acceleration toward central mass only
+            let accel = G * sunObj.mass / (r * r);
+            accel = Math.min(accel, 8000);
+            const ux = dx / r, uz = dz / r;
+            p.vx += accel * ux * step; p.vz += accel * uz * step;
         }
-        if (trigger) {
-            p.isDynamic = true;
-            const v = Math.sqrt(G * p.primary.mass / Math.max(p.dist, 10));
-            p.vx = -Math.sin(p.angle) * v; p.vz = Math.cos(p.angle) * v;
+        for (const p of planets) {
+            if (p === sunObj || !p.isDynamic || p === draggedPlanet) continue;
+            p.x += p.vx * step; p.z += p.vz * step;
         }
     }
-    for (let i = 0; i < planets.length; i++) {
-        const p1 = planets[i];
-        if (p1 === draggedPlanet || !p1.isDynamic) continue;
-        let ax = 0, az = 0;
-        for (let j = 0; j < planets.length; j++) {
-            if (i === j) continue;
-            const p2 = planets[j], dx = p2.x - p1.x, dz = p2.z - p1.z;
-            const d = Math.max(Math.hypot(dx, dz), Math.max(p1.mass, p2.mass) / 2);
-            const f = G * p2.mass / (d * d);
-            ax += f * dx / d; az += f * dz / d;
-        }
-        p1.vx += ax * speedFactor; p1.vz += az * speedFactor;
-    }
-    const BOUND = 2600;
+
+    // Escape / crash detection
+    if (!sunObj) return;
+    const BOUND = 5800;
     for (let i = planets.length - 1; i >= 0; i--) {
         const p = planets[i];
-        if (p === draggedPlanet) continue;
-        if (!p.isDynamic && p.primary) {
-            const w = Math.sqrt(G * p.primary.mass / Math.pow(Math.max(p.dist, 10), 3));
-            p.angle += w * speedFactor * (p.orbitMult || 1.0);
-            const pos = geoPos(p.angle, p.dist, p.shape);
-            p.x = p.primary.x + pos.x; p.z = p.primary.z + pos.y;
-            markOrbitDirty(p);
-        } else if (p.isDynamic) {
-            p.x += p.vx * speedFactor; p.z += p.vz * speedFactor;
-            let best = p.primary, maxPull = -1;
-            for (const o of planets) {
-                if (o === p) continue;
-                const d = Math.max(Math.hypot(p.x - o.x, p.z - o.z), 5);
-                const pull = G * o.mass / (d * d);
-                const vr = Math.hypot(p.vx - (o.vx || 0), p.vz - (o.vz || 0));
-                if (vr < Math.sqrt(2 * G * o.mass / d) && pull > maxPull) { maxPull = pull; best = o; }
-            }
-            if (best && p.primary !== best) { p.primary = best; p.basePrimaryMass = best.mass; p.history = []; markOrbitDirty(p); }
-            if (p.primary) {
-                const rx = p.x - p.primary.x, rz = p.z - p.primary.z;
-                const last = p.history[p.history.length - 1];
-                if (!last || Math.hypot(last.x - rx, last.z - rz) > 2) {
-                    p.history.push({ x: rx, z: rz });
-                    if (p.history.length > 250) p.history.shift();
-                }
-                p.dist = Math.hypot(rx, rz); p.angle = Math.atan2(rz, rx);
-                markOrbitDirty(p);
-            }
+        if (p === sunObj || !p.isDynamic) continue;
+        const dx = p.x - sunObj.x, dz = p.z - sunObj.z;
+        const dist = Math.hypot(dx, dz);
+        const absorbR = sunObj.mass * 0.45 + p.mass * 0.45 + 8;
+        if (dist < absorbR) {
+            const scr = projectToScreen(p.x, 0, p.z);
+            if (scr.visible) { spawnParticles(scr.x, scr.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true }); showFloatingMessage('Crash!', '#ffb080'); }
+            removePlanetFromScene(p); planets.splice(i, 1); continue;
         }
-        if (Math.abs(p.x) > BOUND || Math.abs(p.z) > BOUND) {
-            removePlanetFromScene(p, false);
-            planets.splice(i, 1);
-            lostPlanets.push(p);
-            updateLostList();
+        if (dist > BOUND) {
+            const ux = dx / dist, uz = dz / dist;
+            const outV = p.vx * ux + p.vz * uz;
+            if (outV > 0) {
+                const scr = projectToScreen(p.x, 0, p.z);
+                if (scr.visible) { spawnParticles(scr.x, scr.y, { count: 26, color: '#66ccff', life: 42, speed: 5.5, ring: true }); showFloatingMessage(p.name + ' escaped!', '#8fdcff'); }
+                removePlanetFromScene(p, false); planets.splice(i, 1);
+                lostPlanets.push(p); updateLostList();
+            }
         }
     }
 }

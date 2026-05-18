@@ -21,32 +21,38 @@ function createPlanetMaterial(name, hex) {
     return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0.1 });
 }
 
-function createStage1CentralMaterial(type) {
+function createStage1CentralMaterial() {
+    // Procedural watermelon: green base with darker longitudinal stripes
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 256;
     const ctx = canvas.getContext('2d');
-    const isBlackHole = type === 'blackhole';
-    ctx.fillStyle = isBlackHole ? '#000000' : '#d87922';
+    // Base green
+    ctx.fillStyle = '#3a8c2f';
     ctx.fillRect(0, 0, 512, 256);
-    if (!isBlackHole) {
-        ctx.strokeStyle = '#3a1d08'; ctx.lineWidth = 9;
-        ctx.beginPath(); ctx.moveTo(0, 128); ctx.lineTo(512, 128); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(256, 0); ctx.lineTo(256, 256); ctx.stroke();
-        ctx.beginPath(); ctx.ellipse(256, 128, 95, 150, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.ellipse(256, 128, 210, 65, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = 0.18;
-        for (let i = 0; i < 1800; i++) { ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.random() * 512, Math.random() * 256, 1, 1); }
-        ctx.globalAlpha = 1;
+    // Lighter green layer via noise-like banding
+    for (let x = 0; x < 512; x++) {
+        const t = x / 512;
+        const stripe = Math.sin(t * Math.PI * 14) * 0.5 + 0.5;
+        const light = stripe > 0.52 ? 'rgba(80,180,60,0.45)' : 'rgba(20,70,10,0.35)';
+        ctx.fillStyle = light;
+        ctx.fillRect(x, 0, 1, 256);
     }
+    // Subtle highlight band near equator
+    const grad = ctx.createLinearGradient(0, 90, 0, 166);
+    grad.addColorStop(0, 'rgba(140,220,100,0.10)');
+    grad.addColorStop(0.5, 'rgba(180,255,120,0.18)');
+    grad.addColorStop(1, 'rgba(140,220,100,0.10)');
+    ctx.fillStyle = grad; ctx.fillRect(0, 90, 512, 76);
+    // Fine speckles for texture
+    ctx.globalAlpha = 0.12;
+    for (let i = 0; i < 900; i++) { ctx.fillStyle = '#000'; ctx.fillRect(Math.random()*512, Math.random()*256, 1, 1); }
+    ctx.globalAlpha = 1;
     const tex = new THREE.CanvasTexture(canvas);
-    return new THREE.MeshStandardMaterial({
-        map: tex, roughness: isBlackHole ? 1.0 : 0.75, metalness: isBlackHole ? 0.0 : 0.05,
-        emissive: 0x000000, emissiveIntensity: 0
-    });
+    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, metalness: 0.0, emissive: 0x081a04, emissiveIntensity: 0.1 });
 }
 
-function makeStage1CentralMesh(mass, presetId) {
+function makeStage1CentralMesh(mass) {
     const r = Math.max(65, mass * 0.5);
-    return new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), createStage1CentralMaterial(presetId));
+    return new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), createStage1CentralMaterial());
 }
 
 let _saturnRingTex = null;
@@ -126,19 +132,39 @@ let blanketMesh = null, blanketGeo = null;
 function createBlanket() {
     if (blanketMesh) return;
     blanketGeo = new THREE.PlaneGeometry(2200, 2200, 100, 100); blanketGeo.rotateX(-Math.PI / 2);
-    blanketMesh = new THREE.Mesh(blanketGeo, new THREE.MeshStandardMaterial({ color: 0x162d5c, roughness: 0.9, emissive: 0x0a1a3a, emissiveIntensity: 0.2, side: THREE.DoubleSide }));
+    // Grid-pattern canvas texture so deformation is clearly visible
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#050d24'; ctx.fillRect(0, 0, 512, 512);
+    const cells = 20, step = 512 / cells;
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i <= cells; i++) {
+        const t = i / cells;
+        // Brighter at center, dimmer at edges
+        const alpha = 0.35 + 0.3 * (1 - Math.abs(t * 2 - 1));
+        ctx.strokeStyle = `rgba(60,140,255,${alpha.toFixed(2)})`;
+        const p = i * step;
+        ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, 512); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(512, p); ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(5, 5);
+    blanketMesh = new THREE.Mesh(blanketGeo, new THREE.MeshStandardMaterial({
+        map: tex, roughness: 0.85, emissive: 0x010612, emissiveIntensity: 0.55, side: THREE.DoubleSide
+    }));
     scene.add(blanketMesh);
 }
 function computeBlanketY(wx, wz, ignore) {
     let y = 0;
     if (s1CentralObj && s1CentralObj !== ignore) {
         const d = Math.hypot(wx, wz);
-        const r = s1CentralObj.radius;
-        const df = s1CentralObj.isBlackHole ? 1.8 : 1.0;
-        const maxDepth = r * 0.85 * df;       // depth scales with sphere radius
-        const wellWidth = r * 3.5;            // well width also scales with radius
+        const m = s1CentralObj.mass;
+        // Depth and well-width both scale with mass so heavier objects produce
+        // visibly wider, deeper gravity wells — not just bigger spheres.
+        const maxDepth = 60 + m * 1.1;
+        const wellWidth = 80 + m * 3.8;
         const u = d / wellWidth;
-        y -= maxDepth / (1 + u * u * 1.5);
+        y -= maxDepth / (1 + u * u * 1.2);
     }
     for (const b of s1Balls) {
         if (!b.alive || b === ignore) continue;
@@ -180,7 +206,7 @@ function addPlanet(x, z, m, hex, name, r) {
         document.getElementById('labels').appendChild(el); labelEls[name] = el;
     }
     labelEls[name].style.display = 'block';
-    const p = { x, z, mass: m, color: hex, name, initialR: r, dist: r, angle: Math.atan2(z, x), vx: 0, vz: 0, mesh, glow, selRing: sel, isDynamic: false, history: [] };
+    const p = { x, z, mass: m, color: hex, name, initialR: r, dist: r, angle: Math.atan2(z, x), vx: 0, vz: 0, mesh, glow, selRing: sel, isDynamic: false, stage2Modified: false, history: [] };
     createPlanetExtras(p); mesh.userData.planet = p; planets.push(p); return p;
 }
 function makePlanetMesh(name, mass, hex) {
@@ -188,16 +214,16 @@ function makePlanetMesh(name, mass, hex) {
     return new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), createPlanetMaterial(name, hex));
 }
 function makeStage1BallMesh(mass, hex) {
-    const r = Math.max(18, mass * 0.75);
+    const r = 12 + Math.sqrt(mass) * 2.8;
     return new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), createPlanetMaterial('Ball', hex));
 }
 
 function syncMeshPosition(p) {
     const visualRadius = p.radius || p.mass * 0.45;
-    const wy = (stage === 1) ? computeBlanketY(p.x, p.z, p) : warpDepth(p.x, p.z, p);
-    const py = (stage === 1)
-        ? wy + visualRadius
-        : wy + visualRadius * 0.55 + 4;
+    // Stages 1 and 2 both use the blanket surface; stage 3 uses the warp-depth grid
+    const onBlanket = stage === 1 || stage === 2;
+    const wy = onBlanket ? computeBlanketY(p.x, p.z, p) : warpDepth(p.x, p.z, p);
+    const py = onBlanket ? wy + visualRadius : wy + visualRadius * 0.55 + 4;
     p.mesh.position.set(p.x, py, p.z);
     p.glow.position.set(p.x, py, p.z);
     if (p.extras && p.extras.ring) p.extras.ring.position.set(p.x, py, p.z);
@@ -207,9 +233,9 @@ function syncMeshPosition(p) {
 function updateOrbitRing(p) {
     if (!p.orbitRing || !sunObj) return;
     const r = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
-    const sunWY = warpDepth(sunObj.x, sunObj.z, sunObj);
+    // Position ring at planet's actual mesh y so it passes through the planet center
     p.orbitRing.scale.set(r, r, 1);
-    p.orbitRing.position.set(sunObj.x, sunWY + 3, sunObj.z);
+    p.orbitRing.position.set(sunObj.x, p.mesh.position.y, sunObj.z);
 }
 
 function createOrbitRing(p) {
@@ -224,74 +250,34 @@ function createOrbitRing(p) {
 
 // --- PHYSICS ---
 function updatePhysics(dt) {
-    if (stage === 2) {
-        const subs = 8, stepDt = (dt * 140 * getStage2SpeedMultiplier()) / subs;
-        for (let s = 0; s < subs; s++) {
-            for (const p of planets) {
-                if (p === sunObj || !p.stage2Modified) continue;
-                let ax = 0, az = 0;
-                for (const o of planets) {
-                    if (o === p) continue;
-                    const dx = o.x - p.x, dz = o.z - p.z;
-                    const r = Math.max(Math.hypot(dx, dz), 15);
-                    
-                    // Unified Proper Gravity
-                    const isSunBH = (o === sunObj && o.mass > 400);
-                    const gravityScale = o === sunObj ? 1.0 : 0.06;
-                    const suction = isSunBH ? (1.0 + 250000 / (r * r)) : 1.0;
-                    let f = G * o.mass * gravityScale * suction / (r * r);
-                    
-                    // Stability clamp for high-gravity scenarios
-                    f = Math.min(f, 20000);
-                    
-                    ax += f * dx / r; az += f * dz / r;
-                }
-                p.vx += ax * stepDt; p.vz += az * stepDt;
-                p.x += p.vx * stepDt; p.z += p.vz * stepDt;
-                
-                // Crash detection for Stage 2 (Black Hole Absorption)
-                const distToSun = Math.hypot(p.x - (sunObj?sunObj.x:0), p.z - (sunObj?sunObj.z:0));
-                const isBH = (sunObj && sunObj.mass > 400);
-                const absorbR = (sunObj ? (sunObj.mass * 0.45) : 0) + ( isBH ? 75 : 20);
-                if (distToSun < absorbR) {
-                    p.x = 99999; p.z = 99999; // Ensure escape check catches it
-                }
-            }
-        }
-        for (const p of planets) if (p !== sunObj && !p.stage2Modified) {
-            // Check if sun is too light to hold forced orbit
-            const r = p.dist, vOrbit = Math.sqrt(G * (sunObj ? sunObj.mass : 0) / r);
-            if (sunObj && sunObj.mass < 50) { 
-                p.stage2Modified = true; // Fly away!
-                p.vx = -Math.sin(p.angle) * vOrbit; p.vz = Math.cos(p.angle) * vOrbit;
-            } else if (sunObj) {
-                const w = vOrbit / r;
-                p.angle += w * dt * 108 * getStage2SpeedMultiplier();
-                p.x = Math.cos(p.angle) * r; p.z = Math.sin(p.angle) * r;
-            }
-        }
-        checkStage2Escapes();
-    } else if (stage === 3) {
-        // Fix 2: Multiply by dt so simulation is frame-rate independent.
-        // Scale factor 60 calibrates to visually stable orbits at speedFactor max (3).
-        const stepDt = dt * speedFactor * 60;
+    // Stage 3 (Solar System) physics only — stage 1/2 use updateStage1Physics directly
+    const subs = 8, stepDt = (dt * 140 * getStage2SpeedMultiplier()) / subs;
+    for (let s = 0; s < subs; s++) {
         for (const p of planets) {
-            if (p === sunObj || !p.isDynamic) continue;
+            if (p === sunObj || !p.stage2Modified) continue;
             let ax = 0, az = 0;
             for (const o of planets) {
                 if (o === p) continue;
                 const dx = o.x - p.x, dz = o.z - p.z;
-                const r = Math.max(Math.hypot(dx, dz), 5);
-                const f = G * o.mass / (r * r);
+                const r = Math.max(Math.hypot(dx, dz), 15);
+                const gravityScale = o === sunObj ? 1.0 : 0.06;
+                let f = G * o.mass * gravityScale / (r * r);
+                f = Math.min(f, 20000);
                 ax += f * dx / r; az += f * dz / r;
             }
-            p.vx += ax * stepDt;
-            p.vz += az * stepDt;
-            p.x += p.vx * stepDt;
-            p.z += p.vz * stepDt;
+            p.vx += ax * stepDt; p.vz += az * stepDt;
+            p.x += p.vx * stepDt; p.z += p.vz * stepDt;
         }
-        checkStage3Escapes(); // Fix 4: escape detection on every physics tick
     }
+    for (const p of planets) if (p !== sunObj && !p.stage2Modified) {
+        const r = p.dist;
+        if (sunObj && sunObj.mass >= 50) {
+            const w = Math.sqrt(G * sunObj.mass / r) / r;
+            p.angle += w * dt * 108 * getStage2SpeedMultiplier();
+            p.x = Math.cos(p.angle) * r; p.z = Math.sin(p.angle) * r;
+        }
+    }
+    checkStage3Escapes();
     checkPlanetCrashes();
 }
 
@@ -312,7 +298,8 @@ function checkPlanetCrashes() {
         }
         for (let j = i - 1; j >= 0; j--) {
             const q = planets[j]; if (q === sunObj) continue;
-            if (stage === 2 && !p.stage2Modified && !q.stage2Modified) continue;
+            // Skip collision between two undisturbed kinematic planets (they never physically meet)
+            if (!p.stage2Modified && !q.stage2Modified) continue;
             if (Math.hypot(p.x - q.x, p.z - q.z) < (p.mass * 0.45) + (q.mass * 0.45) + 6) {
                 const s = projectToScreen((p.x + q.x) / 2, 0, (p.z + q.z) / 2);
                 if (s.visible) {
@@ -336,6 +323,9 @@ function removePlanetFromScene(p) {
 // --- STAGE SWITCHER ---
 function setStage(s) {
     if (isPlaying) togglePlay();
+    // Always clear any pending direction choice from L1S2 before switching
+    s2PendingBall = null;
+    if (typeof hideS2DirectionOverlay === 'function') hideS2DirectionOverlay();
     stage = s;
     s1Balls.forEach(b => { scene.remove(b.mesh); scene.remove(b.glow); });
     s1Balls = []; selectedS1Ball = null;
@@ -348,38 +338,45 @@ function setStage(s) {
     planets = []; lostPlanets = []; updateLostList();
     Object.values(labelEls).forEach(el => el.style.display = 'none');
     if (blanketMesh) { scene.remove(blanketMesh); blanketMesh = null; blanketGeo = null; }
-    document.getElementById('landing-hub').style.display = s === 0 ? 'block' : 'none';
-    document.getElementById('ui-header').style.display = s === 0 ? 'none' : 'block';
+    document.getElementById('landing-hub').style.display = 'none';
+    document.getElementById('ui-header').style.display = 'block';
     document.getElementById('stage1-panel').style.display = s === 1 ? 'flex' : 'none';
     document.getElementById('stage2-panel').style.display = s === 2 ? 'flex' : 'none';
     document.getElementById('stage3-panel').style.display = s === 3 ? 'flex' : 'none';
     document.getElementById('btn-play').style.display = s === 0 ? 'none' : 'inline-block';
+    const infoBox = document.getElementById('s3-info-box');
+    if (infoBox) infoBox.style.display = s === 3 ? 'block' : 'none';
+    ['hint-s1','hint-s2','hint-s3'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    const hintMap = { 1: 'hint-s1', 2: 'hint-s2', 3: 'hint-s3' };
+    if (hintMap[s]) { const el = document.getElementById(hintMap[s]); if (el) el.style.display = 'inline-block'; }
+    if (s === 3) { if (typeof buildS3PlanetList === 'function') buildS3PlanetList(); }
     if (s === 1) {
         createBlanket(); resetStage1Lab(); gridMesh.visible = false;
     } else if (s === 2) {
-        sunObj = addPlanet(0, 0, 180, 0xFFD700, 'SUN', 0);
-        SOLAR.forEach(p => {
-            const pl = addPlanet(p.r, 0, p.m, p.c, p.name, p.r);
-            createOrbitRing(pl);
-            pl.stage2Modified = false;
-        });
-        gridMesh.visible = true;
+        createBlanket(); gridMesh.visible = false;
+        s2PendingBall = null; hideS2DirectionOverlay();
+        createS1CentralObject(S1_CENTRAL_PRESETS[s1Config.centralPreset || 'light'].mass);
+        updateS1Counter();
     } else if (s === 3) {
-        gridMesh.visible = true; resetStage3Universe();
+        gridMesh.visible = true; resetStage3SolarSystem();
     }
     resetCamera();
 }
 
 function togglePlay() {
-    if (stage === 3 && planets.length < 4 && !isPlaying) return showToast('Need 3 planets!');
+    if (stage === 3 && planets.filter(p => p !== sunObj).length < 1 && !isPlaying) return showToast('No planets yet!');
+    if (s2PendingBall && !isPlaying) return showToast('Choose a direction first!');
     isPlaying = !isPlaying;
     document.getElementById('btn-play').innerText = isPlaying ? '⏸ Pause' : '▶ Play';
     if (!isPlaying) speedFactor = 0;
 }
 
 function resetCamera() {
-    targetTheta = 0; targetPhi = stage === 1 ? 1.12 : 1.15;
-    targetRadius = stage === 1 ? 1850 : 1800; camX = 0; camY = 0; autoFollow = true;
+    targetTheta = 0;
+    targetPhi = stage === 1 ? 1.12 : 1.15;
+    // Stage 3 (Solar System) needs a wider zoom to fit Neptune; stages 1/2 stay closer
+    targetRadius = stage === 3 ? 3500 : (stage === 1 ? 1850 : 1800);
+    camX = 0; camY = 0; autoFollow = true;
 }
 
 function updateLostList() {
@@ -391,6 +388,12 @@ function updateLostList() {
         list.appendChild(div);
     });
     document.getElementById('escaped-box').style.visibility = lostPlanets.length > 0 ? 'visible' : 'hidden';
+}
+
+function restoreSystem() {
+    if (isPlaying) return showToast();
+    if (stage === 1 || stage === 2) resetStage1Lab();
+    else if (stage === 3) resetStage3SolarSystem();
 }
 
 function restorePlanet(i) {
@@ -490,12 +493,16 @@ window.addEventListener('pointermove', e => {
 });
 
 window.addEventListener('pointerup', e => {
-    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) < 5 && stage === 1 && !draggedPlanet && !s1PlacementBlocked) {
+    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) < 5 && (stage === 1 || stage === 2) && !draggedPlanet && !s1PlacementBlocked && !s2PendingBall) {
         const { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
         placeStage1Ball(wx, wz);
     }
+    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) < 5 && stage === 3) {
+        const hit = hitTestPlanet(e.clientX, e.clientY);
+        if (hit && hit !== sunObj) s3SelectPlanet(hit.name);
+    }
 
-    if (draggedPlanet && stage === 2 && draggedPlanet !== sunObj) {
+    if (draggedPlanet && stage === 3 && sunObj && draggedPlanet !== sunObj) {
         const dx = draggedPlanet.x - sunObj.x, dz = draggedPlanet.z - sunObj.z;
         const dist = Math.hypot(dx, dz);
         const minSafe = (sunObj.mass * 0.45) + (draggedPlanet.mass * 0.45) + 80;
@@ -531,7 +538,7 @@ function hitTestPlanet(mx, my) {
     mouse2d.set((mx / window.innerWidth) * 2 - 1, -(my / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(mouse2d, camera);
     const hitList = planets.map(p => p.mesh);
-    if (stage === 1) {
+    if (stage === 1 || stage === 2) {
         s1Balls.forEach(b => { if (b.alive !== false && b.mesh) hitList.push(b.mesh); });
         if (s1CentralObj && s1CentralObj.mesh) hitList.push(s1CentralObj.mesh);
     }
@@ -548,12 +555,12 @@ function hitTestPlanet(mx, my) {
 function animate() {
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
-    if (stage === 1) updateStage1Physics(dt);
+    if (stage === 1 || stage === 2) updateStage1Physics(dt);
     else if (isPlaying) { speedFactor = Math.min(3, speedFactor + dt * 2); updatePhysics(dt); }
     camTheta += (targetTheta - camTheta) * 0.1;
     camPhi += (targetPhi - camPhi) * 0.1;
     camRadius += (targetRadius - camRadius) * 0.1;
-    if (stage !== 1) { updateGrid(); planets.forEach(syncMeshPosition); }
+    if (stage === 3) { updateGrid(); planets.forEach(syncMeshPosition); }
     else { syncS1CentralMesh(); s1Balls.forEach(syncMeshPosition); }
     if (sunObj) sunLight.position.set(sunObj.x, sunObj.mesh.position.y + 200, sunObj.z);
     else if (s1CentralObj) sunLight.position.set(0, s1CentralObj.mesh.position.y + 200, 0);
@@ -561,17 +568,18 @@ function animate() {
     updateLabels();
     renderer.render(scene, camera);
     tickFX();
+    if (stage === 3) updateS3InfoPanel(null);
 }
 
 function syncS1CentralMesh() {
     if (!s1CentralObj) return;
     const r = s1CentralObj.radius;
-    // Position the sphere so its lower surface rests at the bottom of its own well.
-    // Exclude self from the depth lookup so we measure where the cloth WOULD be
-    // without this sphere, then add back the radius to seat it on the depression.
+    const m = s1CentralObj.mass;
+    // Seat the watermelon at the bottom of its own depression.
+    // Compute blanket depth at origin excluding self, then subtract the well depth
+    // the sphere contributes, and lift by its radius so it rests on the surface.
     const bottomY = computeBlanketY(0, 0, s1CentralObj);
-    const df = s1CentralObj.isBlackHole ? 1.8 : 1.0;
-    const wellDepth = r * 0.85 * df;
+    const wellDepth = 60 + m * 1.1; // matches computeBlanketY formula at d=0
     const y = bottomY - wellDepth + r;
     s1CentralObj.mesh.position.set(0, y, 0);
     s1CentralObj.glow.position.set(0, y, 0);
@@ -581,7 +589,7 @@ function syncS1CentralMesh() {
 window.addEventListener('load', () => {
     initFX();
     const urlParams = new URLSearchParams(window.location.search);
-    const startStage = parseInt(urlParams.get('stage')) || 0;
+    const startStage = parseInt(urlParams.get('stage')) || 1;
     setStage(startStage);
     animate();
 });

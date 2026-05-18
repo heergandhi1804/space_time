@@ -1,116 +1,95 @@
 // ═══════════════════════════════════════════════════
-//  LEVEL 1 - STAGE 3 (Create your Universe) — FIXED
+//  LEVEL 1 - STAGE 3 (Solar System)
 // ═══════════════════════════════════════════════════
 
-let s3PlanetCounter = 0; // Fix 7: persistent counter to prevent duplicate names
-
-function s3CreateCentral() {
+function resetStage3SolarSystem() {
     if (isPlaying) return showToast();
-    const m = parseInt(document.getElementById('s3-central-mass').value);
-    const c = document.getElementById('s3-central-color').value;
-
-    // Fix 1: Remove ALL planets (sun + orbiting) before recreating, not just sunObj
     planets.forEach(p => {
         scene.remove(p.mesh); scene.remove(p.glow);
         if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
         if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
     });
-    planets = []; sunObj = null;
-    s3PlanetCounter = 0; // Fix 7
+    planets = []; lostPlanets = []; updateLostList();
 
-    sunObj = addPlanet(0, 0, m, c, 'SUN', 0);
-    document.getElementById('s3-btn-continue').style.display = 'block';
-    syncMeshPosition(sunObj);
-    updateS3Counter();
-    // Fix 8: use floating message (green) instead of red error toast
-    showFloatingMessage('Central Sphere Created!', '#88ffaa');
+    sunObj = addPlanet(0, 0, 180, 0xFFD700, 'SUN', 0);
+    SOLAR.forEach((p, i) => {
+        const angle = (i / SOLAR.length) * Math.PI * 2;
+        const px = Math.cos(angle) * p.r;
+        const pz = Math.sin(angle) * p.r;
+        const pl = addPlanet(px, pz, p.m, p.c, p.name, p.r);
+        createOrbitRing(pl);
+        pl.stage2Modified = false; // start on stable kinematic orbit
+    });
+
+    updateS3InfoPanel(null);
+    showToast('Solar System Ready!');
 }
 
-function s3GoToStep2() {
-    if (!sunObj) return showToast('Create Central first!'); // Fix 6: guard
-    document.getElementById('s3-central-section').style.display = 'none';
-    document.getElementById('s3-planet-section').style.display = 'flex';
-}
-
-function s3GoToStep1() {
-    if (isPlaying) return showToast();
-    document.getElementById('s3-central-section').style.display = 'flex';
-    document.getElementById('s3-planet-section').style.display = 'none';
-}
-
-function addS3Preset(type) {
-    if (isPlaying) return showToast();
-    if (!sunObj) return showToast('Create Central first!');
-    const cfg = {
-        small: [35, 100, '#6ce0ff'],
-        medium: [70, 115, '#ffcc44'],
-        heavy: [150, 85, '#ff66aa'],
-        comet: [25, 145, '#ffffff']
-    }[type];
-    const n = planets.filter(x => x !== sunObj).length;
-    if (n >= 12) return showToast('Limit reached!');
-    // Fix: orbit must always clear the sun's surface plus the planet's radius, no matter the mass.
-    const sunRadius = sunObj.mass * 0.45;
-    const planetRadius = cfg[0] * 0.45;
-    const minClear = sunRadius + planetRadius + 120;
-    const orbitR = Math.max(280, minClear) + n * 170;
-    const a = n * 1.1;
-    s3PlanetCounter++; // Fix 7: unique name regardless of crashes
-    const planet = addPlanet(
-        Math.cos(a) * orbitR,
-        Math.sin(a) * orbitR,
-        cfg[0], cfg[2],
-        'Planet ' + s3PlanetCounter,
-        orbitR
-    );
-    // Fix 3: use G constant; remove incorrect ×3.0 multiplier that caused escape trajectories.
-    // cfg[1]/100 is the speed ratio (1.0 = stable circular orbit; >1.0 = elliptical/comet).
-    const v = Math.sqrt(G * sunObj.mass / orbitR) * (cfg[1] / 100);
-    planet.vx = -Math.sin(a) * v;
-    planet.vz = Math.cos(a) * v;
-    planet.isDynamic = true;
-    syncMeshPosition(planet);
-    updateS3Counter();
-    showFloatingMessage(type + ' planet added', '#ffd089'); // Fix 8
-}
-
-// Fix 4: Escape detection for Stage 3 (mirrors stage 2's checkStage2Escapes)
 function checkStage3Escapes() {
-    if (!sunObj || !isPlaying) return;
-    const ESCAPE_DIST = 5800;
-    for (let i = planets.length - 1; i >= 0; i--) {
-        const p = planets[i];
-        if (p === sunObj || !p.isDynamic) continue;
-        if (Math.hypot(p.x - sunObj.x, p.z - sunObj.z) > ESCAPE_DIST) {
-            lostPlanets.push(p);
-            scene.remove(p.mesh); scene.remove(p.glow);
-            if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
-            planets.splice(i, 1);
-            updateLostList();
-            showFloatingMessage(p.name + ' escaped!', '#ff8866');
-        }
+    // Re-uses Stage 2 escape logic — same orbital physics
+    checkStage2Escapes();
+}
+
+// Compute real normalized speed for a planet (kinematic vs dynamic)
+function getS3PlanetSpeed(p) {
+    if (!p || p === sunObj) return 0;
+    if (p.stage2Modified) {
+        return Math.hypot(p.vx, p.vz);
+    }
+    // Kinematic: compute expected circular speed
+    const r = p.dist;
+    return r > 0 ? Math.sqrt(G * sunObj.mass / r) : 0;
+}
+
+function getS3OrbitalState(p) {
+    if (!p || p === sunObj || !sunObj) return '';
+    const dx = p.x - sunObj.x, dz = p.z - sunObj.z;
+    const r = Math.hypot(dx, dz);
+    if (!p.stage2Modified) return 'Stable';
+    const vSq = p.vx * p.vx + p.vz * p.vz;
+    const vEscSq = 2 * G * sunObj.mass / Math.max(r, 1);
+    const ux = dx / Math.max(r, 1), uz = dz / Math.max(r, 1);
+    const outwardV = p.vx * ux + p.vz * uz;
+    if (vSq >= vEscSq && outwardV > 0) return 'Escaping';
+    if (outwardV < -0.5 && r < p.initialR * 0.6) return 'Falling In';
+    return 'Orbiting';
+}
+
+let _s3FocusPlanet = null;
+
+function updateS3InfoPanel(hoveredName) {
+    const panel = document.getElementById('s3-info-box');
+    if (!panel) return;
+    if (hoveredName) {
+        const p = planets.find(pl => pl.name === hoveredName);
+        _s3FocusPlanet = p || null;
+    }
+    const p = _s3FocusPlanet;
+    const nameEl = document.getElementById('s3-info-name');
+    const speedEl = document.getElementById('s3-info-speed');
+    const stateEl = document.getElementById('s3-info-state');
+    const refEl   = document.getElementById('s3-info-ref');
+    if (!p || p === sunObj) {
+        if (nameEl) nameEl.textContent = 'Click a planet';
+        if (speedEl) speedEl.textContent = '';
+        if (stateEl) stateEl.textContent = '';
+        if (refEl)   refEl.textContent = '';
+        return;
+    }
+    const realData = SOLAR_REAL[p.name];
+    const state = getS3OrbitalState(p);
+    const stateColor = { Stable: '#88ff88', Orbiting: '#88ff88', 'Falling In': '#ffaa44', Escaping: '#ff6644' }[state] || '#fff';
+    if (nameEl) nameEl.textContent = p.name;
+    if (speedEl) speedEl.textContent = realData ? realData.speedKms + ' km/s  (' + realData.speedMph.toLocaleString() + ' mph)' : '';
+    if (stateEl) { stateEl.textContent = state; stateEl.style.color = stateColor; }
+    if (refEl && realData) {
+        const d = realData.periodDays;
+        const label = d >= 365 ? (d / 365.25).toFixed(1) + ' Earth years' : d + ' Earth days';
+        refEl.textContent = 'Period: ' + label;
     }
 }
 
-function resetStage3Universe() {
-    if (isPlaying) return showToast();
-    planets.forEach(p => {
-        scene.remove(p.mesh); scene.remove(p.glow);
-        if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
-        if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
-    });
-    planets = []; sunObj = null;
-    lostPlanets = []; // Fix 5: clear escaped list on full reset
-    s3PlanetCounter = 0; // Fix 7
-    updateLostList();
-    document.getElementById('s3-central-section').style.display = 'flex';
-    document.getElementById('s3-planet-section').style.display = 'none';
-    document.getElementById('s3-btn-continue').style.display = 'none';
-    updateS3Counter();
-}
-
-function updateS3Counter() {
-    const n = planets.filter(x => x !== sunObj).length;
-    const el = document.getElementById('s3-planet-count');
-    if (el) el.innerText = `Planets: ${n} ${n >= 3 ? '✓ Ready to play!' : '/ 3 minimum'}`;
+function s3SelectPlanet(name) {
+    _s3FocusPlanet = planets.find(p => p.name === name) || null;
+    updateS3InfoPanel(null);
 }

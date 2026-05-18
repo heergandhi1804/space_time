@@ -10,22 +10,13 @@ function toggleStage2Speed() {
 
 function getStage2SpeedMultiplier() { return stage2SpeedMode === 'fast' ? 2 : 1; }
 
-function resetStage2SolarSystem() {
-    if (isPlaying) return showToast();
-    planets.forEach(p => {
-        scene.remove(p.mesh); scene.remove(p.glow);
-        if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
-        if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
-    });
-    planets = [];
-    sunObj = addPlanet(0, 0, 180, 0xFFD700, 'SUN', 0);
-    SOLAR.forEach(p => {
-        const pl = addPlanet(p.r, 0, p.m, p.c, p.name, p.r);
-        createOrbitRing(pl);       // orbit ring
-        pl.stage2Modified = false; // use stable angular orbit math
-    });
-    lostPlanets = []; updateLostList(); showToast('Solar System Reset');
+function resetStage2Lab() {
+    // Stage 2 is now a blanket lab — same reset as stage 1
+    resetStage1Lab();
 }
+
+// Keep alias for legacy call sites
+function resetStage2SolarSystem() { resetStage2Lab(); }
 
 function checkStage2Escapes() {
     if (!isPlaying || !sunObj) return;

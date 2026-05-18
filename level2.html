@@ -4,535 +4,288 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Space-Time Fabric</title>
+    <title>Space-Time Sandbox</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        html,
-        body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            overscroll-behavior: none;
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            background: #040410;
-            color: white;
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden; overscroll-behavior: none;
+            box-sizing: border-box; margin: 0; padding: 0;
+            background: #040410; color: white;
             font-family: 'Segoe UI', sans-serif;
         }
-
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-        }
-
-        canvas {
-            display: block;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-        }
-
-        button,
-        select,
-        input[type=range],
-        input[type=color],
-        .escaped-item {
-            cursor: pointer;
-        }
+        *, *::before, *::after { box-sizing: border-box; }
+        canvas { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+        button, select, input[type=range], input[type=color] { cursor: pointer; }
 
         #ui-header {
-            position: absolute;
-            top: 0;
-            width: 100%;
-            text-align: center;
-            padding-top: 18px;
-            pointer-events: none;
-            z-index: 10;
+            position: absolute; top: 0; width: 100%;
+            text-align: center; padding-top: 14px;
+            pointer-events: none; z-index: 10;
         }
-
-        .nav {
-            margin-top: 12px;
-            pointer-events: auto;
-        }
-
+        .nav { pointer-events: auto; margin-top: 6px; }
         .btn {
-            padding: 11px 24px;
-            margin: 0 6px;
-            border: none;
-            border-radius: 30px;
-            font-weight: bold;
-            font-size: 0.95em;
-            cursor: pointer;
-            transition: transform .15s, box-shadow .15s;
-            min-height: 44px;
+            padding: 10px 22px; margin: 0 4px;
+            border: none; border-radius: 28px;
+            font-weight: bold; font-size: .9em; cursor: pointer;
+            transition: transform .15s; min-height: 44px;
         }
-
-        .btn:hover {
-            transform: scale(1.08);
-            box-shadow: 0 0 14px rgba(255, 255, 255, .35);
-        }
-
-        #btn-1 {
-            background: #ffff00;
-            color: #000;
-        }
-
-        #btn-2 {
-            background: #00ffff;
-            color: #000;
-        }
-
-        #btn-3 {
-            background: #ff3366;
-            color: #fff;
-        }
-
-        #landing-hub {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            background: rgba(0, 0, 0, .88);
-            display: none;
-            padding: 50px 60px;
-            border-radius: 22px;
-            box-shadow: 0 0 50px rgba(0, 200, 255, .18);
-            z-index: 20;
-            border: 1px solid rgba(0, 255, 255, .25);
-            backdrop-filter: blur(12px);
-            max-width: 94vw;
-            max-height: 94vh;
-            overflow-y: auto;
-        }
-
-        #landing-hub h1 {
-            font-size: 2.6em;
-            margin-bottom: 36px;
-            text-shadow: 0 0 18px #00ffff;
-        }
-
-        #landing-hub .nav {
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-            align-items: center;
-        }
-
-        #landing-hub .btn {
-            font-size: 1.2em;
-            padding: 14px 40px;
-            width: 82%;
-        }
-
-        #hint,
-        #hint-s1 {
-            margin-top: 8px;
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 6px;
-            font-size: .88em;
-            background: rgba(0, 0, 0, .6);
-        }
-
-        #hint {
-            color: #00ffff;
-        }
-
-        #hint-s1 {
-            color: #ffff88;
-        }
-
-        #custom-panel {
-            position: absolute;
-            bottom: 18px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, .13);
-            padding: 13px 20px;
-            border-radius: 14px;
-            display: flex;
-            gap: 14px;
-            align-items: center;
-            flex-wrap: wrap;
-            justify-content: center;
-            visibility: hidden;
-            pointer-events: auto;
-            backdrop-filter: blur(6px);
-            border: 1px solid rgba(255, 255, 255, .18);
-            max-width: 98vw;
-        }
-
-        #custom-panel label {
-            color: white;
-            font-size: .9em;
-        }
-
-        #cockpit {
-            position: absolute;
-            right: 18px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(255, 255, 255, .13);
-            padding: 14px;
-            border-radius: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            pointer-events: auto;
-            backdrop-filter: blur(6px);
-            border: 1px solid rgba(255, 255, 255, .18);
-            visibility: hidden;
-        }
-
-        #cockpit label {
-            color: white;
-            display: flex;
-            flex-direction: column;
-            font-size: .9em;
-        }
-
-        .camera-section {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .camera-title {
-            font-size: 0.82em;
-            font-weight: bold;
-            color: #fff;
-            opacity: 0.9;
-        }
-
-        .camera-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-        }
-
-        .camera-grid button {
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            color: white;
-            border-radius: 7px;
-            padding: 9px 8px;
-            font-weight: bold;
-            cursor: pointer;
-            min-height: 40px;
-        }
-
-        .camera-grid button:hover {
-            background: rgba(0, 255, 255, 0.22);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
-        }
+        .btn:hover { transform: scale(1.07); }
+        #btn-play { background: #88ff88; color: #000; display: none; }
 
         #toast {
-            position: absolute;
-            top: 95px;
-            left: 50%;
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,50,50,.92); color: white;
+            padding: 10px 22px; border-radius: 10px; font-weight: bold;
+            visibility: hidden; opacity: 0; transition: opacity .3s;
+            z-index: 100; pointer-events: none;
+        }
+
+        /* ── Stage 3 sidebar panel ── */
+        #s3-panel {
+            position: absolute; left: 16px; top: 50%;
+            transform: translateY(-50%);
+            background: rgba(5,10,30,.85); border: 1px solid rgba(100,160,255,.35);
+            border-radius: 16px; padding: 14px 12px;
+            display: flex; flex-direction: column; gap: 10px;
+            pointer-events: auto; z-index: 25; backdrop-filter: blur(8px);
+            width: 256px; max-height: 90vh; overflow-y: auto;
+        }
+        .s3-title {
+            font-size: .78em; text-transform: uppercase; letter-spacing: .08em;
+            font-weight: 700; color: #88bbff; margin-bottom: 2px;
+        }
+        .s3-section { display: flex; flex-direction: column; gap: 8px; }
+        .s3-row { display: flex; align-items: center; gap: 8px; font-size: .84em; }
+        .s3-row label { min-width: 50px; flex-shrink: 0; color: #ccd; }
+        .s3-row input[type=range] { flex: 1; min-width: 0; }
+        .s3-row .val { min-width: 30px; text-align: right; font-size: .8em; color: #aabb; }
+
+        .s3-btn {
+            border: none; border-radius: 10px; padding: 10px 8px;
+            font-size: .84em; font-weight: 700; cursor: pointer;
+            color: #fff; min-height: 40px; text-align: center;
+            transition: filter .15s;
+        }
+        .s3-btn:hover { filter: brightness(1.15); }
+        .s3-btn.primary { background: linear-gradient(135deg, #1e7a40, #2ea855); }
+        .s3-btn.action  { background: rgba(100,160,255,.25); border: 1px solid rgba(100,160,255,.4); }
+        .s3-btn.danger  { background: rgba(255,80,80,.3); border: 1px solid rgba(255,80,80,.4); }
+        .s3-btn.place   { background: linear-gradient(135deg, #1a3a7a, #2255cc); }
+
+        .s3-divider { border: none; border-top: 1px solid rgba(255,255,255,.1); margin: 2px 0; }
+
+        .note-text { font-size: .72em; color: #6688aa; line-height: 1.4; }
+
+        /* ── Selected planet edit panel ── */
+        #s3-edit-panel {
+            position: absolute; bottom: 18px; left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 50, 50, .92);
-            color: white;
-            padding: 11px 24px;
-            border-radius: 10px;
-            font-weight: bold;
-            visibility: hidden;
-            opacity: 0;
-            transition: opacity .3s;
-            z-index: 100;
-            pointer-events: none;
+            background: rgba(5,10,30,.9); border: 1px solid rgba(255,200,80,.35);
+            border-radius: 14px; padding: 12px 16px;
+            display: none; flex-direction: row; gap: 14px; align-items: center;
+            pointer-events: auto; z-index: 30; backdrop-filter: blur(8px);
+            flex-wrap: wrap; justify-content: center;
+            max-width: min(620px, 96vw);
         }
+        #s3-edit-panel label { color: #ddd; font-size: .82em; display: flex; flex-direction: column; gap: 3px; }
+        #s3-edit-panel input[type=range] { width: 100px; }
+        #s3-edit-panel .ep-title { color: #ffc966; font-weight: 700; font-size: .9em; white-space: nowrap; }
+        #s3-edit-panel button { border: none; border-radius: 8px; padding: 8px 12px; font-weight: bold; cursor: pointer; min-height: 36px; font-size: .82em; }
+        #ep-delete-btn { background: rgba(255,80,80,.35); color: #fff; border: 1px solid rgba(255,80,80,.5); }
+        #ep-close-btn  { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.2); }
 
+        /* ── Direction overlay ── */
+        #s3-dir-overlay {
+            position: absolute; display: none; flex-direction: column; gap: 8px;
+            background: rgba(0,5,20,.88); border: 1px solid rgba(80,200,255,.5);
+            border-radius: 14px; padding: 12px 14px;
+            z-index: 50; pointer-events: auto; min-width: 190px;
+        }
+        .dir-title { font-size: .8em; color: #88ddff; text-align: center; font-weight: 700; margin-bottom: 2px; }
+        #s3-dir-overlay button {
+            padding: 10px 10px; border: 1px solid rgba(255,255,255,.25);
+            border-radius: 9px; background: rgba(255,255,255,.1);
+            color: #fff; font-size: .86em; font-weight: 700;
+            cursor: pointer; text-align: left; min-height: 42px;
+        }
+        #s3-dir-overlay button:hover { background: rgba(80,200,255,.22); }
+        .dir-sub { font-size: .74em; opacity: .65; display: block; margin-top: 1px; }
+        #s3-dir-overlay .dir-cancel { background: rgba(255,80,80,.18); border-color: rgba(255,80,80,.35); font-size: .78em; min-height: 34px; }
+
+        /* ── Escaped planets ── */
         #escaped-box {
-            position: absolute;
-            bottom: 18px;
-            right: 18px;
-            width: 200px;
-            background: rgba(255, 68, 68, .1);
-            border: 2px solid #ff4444;
-            border-radius: 10px;
-            padding: 10px;
-            visibility: hidden;
-            pointer-events: auto;
+            position: absolute; right: 16px; top: 110px;
+            width: 220px; background: rgba(60,0,0,.75);
+            border: 2px solid #ff5555; border-radius: 12px;
+            padding: 10px; visibility: hidden;
+            pointer-events: auto; z-index: 24;
         }
-
         .escaped-item {
-            background: #222;
-            margin: 5px 0;
-            padding: 8px;
-            border-radius: 5px;
-            font-size: 12px;
-            text-align: center;
-            cursor: pointer;
+            background: #1a0808; margin: 5px 0; padding: 8px;
+            border-radius: 7px; font-size: 12px;
+            display: flex; align-items: center; justify-content: space-between; gap: 6px;
         }
 
         .planet-label {
-            position: absolute;
-            color: white;
-            font: bold 12px 'Segoe UI', sans-serif;
-            text-shadow: 0 0 6px #000, 0 0 3px #000;
-            transform: translate(-50%, 0);
-            white-space: nowrap;
-            pointer-events: none;
-            z-index: 6;
+            position: absolute; top: 0; left: 0;
+            color: white; font: bold 11px 'Segoe UI', sans-serif;
+            text-shadow: 0 0 5px #000; transform: translate(-50%,0);
+            white-space: nowrap; pointer-events: none; z-index: 6; will-change: transform;
         }
 
-        #camera-toggle {
-            display: none;
-            position: absolute;
-            left: 10px;
-            bottom: 16px;
-            z-index: 30;
-            background: rgba(0, 0, 0, 0.72);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 999px;
-            padding: 10px 14px;
-            font-weight: bold;
-            min-height: 44px;
-            pointer-events: auto;
-            backdrop-filter: blur(6px);
+        /* ── Zoom controls ── */
+        .zoom-controls {
+            position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 12px; z-index: 100;
+        }
+        .zoom-btn {
+            width: 50px; height: 50px; border-radius: 50%;
+            background: rgba(0,0,0,.65); color: white;
+            border: 1px solid rgba(255,255,255,.2); font-size: 26px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; backdrop-filter: blur(6px);
+        }
+
+        #fx-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
         }
 
         @media (max-width: 768px) {
-            #landing-hub {
-                padding: 30px 24px;
+            #s3-panel {
+                width: 90%; left: 5%; bottom: 14px; top: auto;
+                transform: none; max-height: 42vh;
             }
-
-            #landing-hub h1 {
-                font-size: 1.9em;
-                margin-bottom: 24px;
-            }
-
-            #landing-hub .btn {
-                font-size: 1.05em;
-                padding: 12px 24px;
-                width: 90%;
-            }
-
-            #cockpit {
-                left: 10px;
-                right: auto;
-                top: auto;
-                bottom: 68px;
-                transform: none;
-                padding: 10px;
-                gap: 10px;
-                width: 260px;
-                max-width: calc(100vw - 20px);
-                max-height: 58vh;
-                overflow-y: auto;
-                z-index: 29;
-            }
-
-            #camera-toggle {
-                display: block;
-            }
-
-            .camera-grid button {
-                padding: 7px 5px;
-                font-size: 0.82em;
-                min-height: 38px;
-            }
-
-            .camera-title {
-                font-size: 0.76em;
-            }
-
-            #custom-panel {
-                bottom: 8px;
-                gap: 10px;
-                padding: 10px 12px;
-            }
-
-            .btn {
-                padding: 9px 16px;
-                font-size: 0.88em;
-            }
-
-            #escaped-box {
-                left: auto;
-                right: 8px;
-            }
+            #s3-edit-panel { bottom: 8px; gap: 10px; padding: 10px 12px; }
+            #s3-edit-panel input[type=range] { width: 80px; }
+            .zoom-controls { right: 10px; }
         }
-
-        @media(max-width:768px) {
-                #landing-hub h1 {
-                    font-size: 1.8em;
-                }
-
-                #ui-header {
-                    padding: 10px;
-                    flex-wrap: wrap;
-                    justify-content: center;
-                }
-
-                .nav {
-                    gap: 6px;
-                }
-
-                .btn {
-                    padding: 10px 14px;
-                    min-height: 44px;
-                }
-
-                #stage1-panel,
-                #stage2-panel,
-                #stage3-panel {
-                    width: 90% !important;
-                    left: 5% !important;
-                    bottom: 20px !important;
-                    top: auto !important;
-                    transform: none !important;
-                    max-height: 40vh;
-                }
-
-                #cockpit {
-                    display: none;
-                }
-
-                .planet-label {
-                    font-size: 10px;
-                }
-            }
-
-            .zoom-controls {
-                position: absolute;
-                right: 20px;
-                top: 50%;
-                transform: translateY(-50%);
-                display: flex;
-                flex-direction: column;
-                gap: 12px;
-                z-index: 100;
-            }
-
-            .zoom-btn {
-                width: 54px;
-                height: 54px;
-                border-radius: 50%;
-                background: rgba(0, 0, 0, 0.6);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                font-size: 28px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                backdrop-filter: blur(8px);
-            }
     </style>
 </head>
 
 <body>
     <div class="zoom-controls">
-        <button class="zoom-btn"
-            onclick="targetRadius = Math.max(500, targetRadius - 400); autoFollow=false;">+</button>
-        <button class="zoom-btn"
-            onclick="targetRadius = Math.min(8000, targetRadius + 400); autoFollow=false;">−</button>
+        <button class="zoom-btn" onclick="targetRadius = Math.max(600, targetRadius - 400); autoFollow=false;">+</button>
+        <button class="zoom-btn" onclick="targetRadius = Math.min(9000, targetRadius + 400); autoFollow=false;">−</button>
     </div>
 
-    <div id="landing-hub">
-        <h1>🪐 Solar System Adventure<br>
-            <span style="font-size:.5em;color:#aef;font-weight:normal;">Level 2 - A Journey through Space-Time</span>
-        </h1>
-        <div class="nav">
-            <button class="btn" id="btn-1" onclick="setStage(1)">1 · Spin around Space</button>
-            <button class="btn" id="btn-2" onclick="setStage(2)">2 · Solar Playground</button>
-            <button class="btn" id="btn-3" onclick="setStage(3)">3 · Create your Universe</button>
-            <a href="index.html" class="btn"
-                style="background:#3a4a5a; color:white; text-decoration:none; margin-top:20px; display:flex; align-items:center; justify-content:center;">←
-                Back to Level Selection</a>
-        </div>
-    </div>
-
-    <div id="toast">⏸ Pause before moving objects!</div>
-    <canvas id="fx-canvas"
-        style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10"></canvas>
+    <div id="landing-hub" style="display:none"></div>
+    <canvas id="fx-canvas"></canvas>
+    <div id="toast">Pause first!</div>
 
     <div id="ui-header" style="display:none">
         <div class="nav">
-            <a href="index.html" class="btn"
-                style="background:#555;color:white;text-decoration:none;display:inline-flex;align-items:center;">⌂
-                Menu</a>
-            <button class="btn" onclick="setStage(0)" style="background:#ff6666;color:white">← Hub</button>
-            <button class="btn" id="btn-play" onclick="togglePlay()"
-                style="background:#88ff88;color:black;display:none">▶ Play</button>
+            <button class="btn" style="background:#223;color:#aef;padding:10px 14px;" onclick="window.location.href='index.html'">🏠 Home</button>
+            <button class="btn" id="btn-play" onclick="togglePlay()">▶ Play</button>
         </div>
-        <p id="hint" style="display:none">Double-click / double-tap empty space to add a planet · Shift+click to
-            multi-select</p>
-        <p id="hint-s1" style="display:none">⏸ Drag planets along their orbit · then press Play to animate</p>
-        <p id="hint-s2" style="display:none">⏸ Drag planets · Press Play to simulate gravity</p>
+        <p id="hint" style="display:none;color:#aaeeff;font-size:.85em;margin-top:6px;pointer-events:none;">
+            Only the central object pulls on planets in this model.</p>
     </div>
 
-    <div id="custom-panel">
-        <span id="target-name" style="font-weight:bold;color:#ffff00;min-width:70px">SUN</span>
-        <label>Mass<input type="range" id="massSlider" min="20" max="300" value="180" oninput="updateTarget()"></label>
-        <label id="shape-label">Orbit
-            <select id="shapeSelect" onchange="updateTarget()">
-                <option value="circle">Circle</option>
-                <option value="triangle">Triangle</option>
-                <option value="square">Square</option>
-                <option value="trapezoid">Trapezoid</option>
-            </select>
+    <!-- ═══ STAGE 3 SIDEBAR ═══ -->
+    <div id="s3-panel">
+        <div class="s3-title" style="font-size:.95em;color:#fff;text-align:center;letter-spacing:.04em;">🌌 Sandbox Universe</div>
+
+        <!-- Step 1: Central mass -->
+        <div id="s3-step1" class="s3-section" style="display:flex">
+            <div class="s3-title">Step 1 · Central Object</div>
+            <div class="s3-row">
+                <label>Mass</label>
+                <input type="range" id="s3-sun-mass" min="60" max="600" step="10" value="200"
+                    oninput="document.getElementById('s3-sm-val').textContent=this.value">
+                <span class="val" id="s3-sm-val">200</span>
+            </div>
+            <div class="s3-row">
+                <label>Color</label>
+                <input type="color" id="s3-sun-color" value="#ffd700"
+                    style="width:36px;height:28px;border:none;border-radius:5px;">
+            </div>
+            <button class="s3-btn primary" onclick="s3CreateSun()">✦ Create Central Object</button>
+            <p class="note-text">Higher mass = deeper gravity well &amp; stronger pull on planets.</p>
+        </div>
+
+        <!-- Step 2: Add planets -->
+        <div id="s3-step2" class="s3-section" style="display:none">
+            <div class="s3-title">Step 2 · Add Planets</div>
+
+            <div class="s3-row">
+                <label>Mass</label>
+                <input type="range" id="s3-p-mass" min="20" max="200" step="5" value="55"
+                    oninput="document.getElementById('s3-pm-val').textContent=this.value">
+                <span class="val" id="s3-pm-val">55</span>
+            </div>
+            <div class="s3-row">
+                <label>Size</label>
+                <input type="range" id="s3-p-size" min="0.5" max="2.0" step="0.1" value="1.0"
+                    oninput="document.getElementById('s3-ps-val').textContent=parseFloat(this.value).toFixed(1)+'×'">
+                <span class="val" id="s3-ps-val">1.0×</span>
+            </div>
+            <div class="s3-row">
+                <label>Color</label>
+                <input type="color" id="s3-p-color" value="#6ce0ff"
+                    style="width:36px;height:28px;border:none;border-radius:5px;">
+            </div>
+
+            <div class="s3-row">
+                <label>Name</label>
+                <input type="text" id="s3-p-name" placeholder="optional"
+                    style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:4px 8px;font-size:.82em;min-width:0;">
+            </div>
+            <button class="s3-btn place" onclick="s3StartPlacing()">📍 Tap Blanket to Place</button>
+            <p class="note-text">After placing, choose which direction the planet moves.</p>
+            <p class="note-text" style="color:#5577aa;">Only the central object pulls on planets — planets don't attract each other.</p>
+
+            <hr class="s3-divider">
+            <button class="s3-btn action" onclick="_showS3Step(1)">← Change Central Object</button>
+            <button class="s3-btn danger" onclick="resetStage3()">↺ Reset Universe</button>
+
+        </div>
+    </div>
+
+    <!-- ═══ DIRECTION OVERLAY ═══ -->
+    <div id="s3-dir-overlay">
+        <div class="dir-title">Which way should it go?</div>
+        <button onclick="s3ChooseDirection('go_around')">
+            ↺ Go around<span class="dir-sub">Circles the center</span>
+        </button>
+        <button onclick="s3ChooseDirection('curve_in')">
+            ↗ Curve inward<span class="dir-sub">Spirals toward center</span>
+        </button>
+        <button onclick="s3ChooseDirection('zoom_out')">
+            🚀 Zoom outward<span class="dir-sub">May escape!</span>
+        </button>
+        <button class="dir-cancel" onclick="s3CancelPlacement()">✕ Cancel</button>
+    </div>
+
+    <!-- ═══ SELECTED PLANET EDIT ═══ -->
+    <div id="s3-edit-panel">
+        <span class="ep-title">Edit Planet</span>
+        <label>
+            Mass
+            <input type="range" id="s3-edit-mass" min="20" max="200" step="5" value="55"
+                oninput="document.getElementById('s3-em-val').textContent=this.value; s3UpdateSelected();">
         </label>
-        <input type="color" id="colorPicker" onchange="updateTarget()"
-            style="width:30px;height:30px;border:none;border-radius:5px">
-        <button id="delete-btn" onclick="deleteTarget()"
-            style="background:#ff4444;border:none;border-radius:6px;padding:9px 12px;color:white;font-weight:bold;min-height:40px">✕
-            Delete</button>
+        <span class="val" id="s3-em-val" style="align-self:flex-end;margin-bottom:2px;">55</span>
+        <label>
+            Color
+            <input type="color" id="s3-edit-color" value="#6ce0ff"
+                style="width:36px;height:28px;border:none;border-radius:5px;margin-top:2px;"
+                oninput="s3UpdateSelected();">
+        </label>
+        <span id="s3-edit-speed" style="font-size:.78em;color:#aabbcc;align-self:center;white-space:nowrap;"></span>
+        <button id="ep-delete-btn" onclick="s3DeleteSelected()">🗑 Delete</button>
+        <button id="ep-close-btn" onclick="s3HideEditPanel()">✕ Close</button>
     </div>
 
-    <div id="cockpit">
-        <div style="font-weight:bold;text-align:center">🎛 Camera</div>
-        <div class="camera-section">
-            <div class="camera-title">Orbit</div>
-            <div class="camera-grid">
-                <button onclick="setOrbitView('north')">North</button>
-                <button onclick="setOrbitView('south')">South</button>
-                <button onclick="setOrbitView('east')">East</button>
-                <button onclick="setOrbitView('west')">West</button>
-            </div>
-        </div>
-        <div class="camera-section">
-            <div class="camera-title">Zoom</div>
-            <div class="camera-grid">
-                <button onclick="setZoomLevel(0.5)">0.5×</button>
-                <button onclick="setZoomLevel(1)">1×</button>
-                <button onclick="setZoomLevel(2)">2×</button>
-                <button onclick="setZoomLevel(3)">3×</button>
-            </div>
-        </div>
-        <div class="camera-section">
-            <div class="camera-title">Tilt</div>
-            <div class="camera-grid">
-                <button onclick="setTiltView('top')">Top</button>
-                <button onclick="setTiltView('side')">Side</button>
-            </div>
-        </div>
-        <button onclick="resetCamera()"
-            style="background:#555;border:none;border-radius:6px;padding:9px;color:white;font-weight:bold;min-height:40px">⌖
-            Reset View</button>
-        <button onclick="clearSelection()"
-            style="background:#ff4444;border:none;border-radius:6px;padding:9px;color:white;font-weight:bold;min-height:40px">✕
-            Deselect</button>
-    </div>
-
-    <button id="camera-toggle" onclick="toggleCameraPanel()">🎛 Camera</button>
-
+    <!-- ═══ ESCAPED PLANETS ═══ -->
     <div id="escaped-box">
-        <div style="font-weight:bold;color:#ff4444;margin-bottom:5px">🚀 Lost Planets</div>
+        <div style="font-weight:bold;color:#ff8888;margin-bottom:5px;">🚀 Lost Planets</div>
         <div id="lost-list"></div>
         <button onclick="restoreSystem()"
-            style="background:#ff4444;border:none;border-radius:5px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:8px;min-height:40px">↩
-            Restore All</button>
-        <button id="btn-reset-s2" onclick="resetStage2Planets()"
-            style="display:none;background:#ff8800;border:none;border-radius:5px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:6px;min-height:40px">↺
-            Reset Stage 2</button>
+            style="background:#cc3333;border:none;border-radius:6px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:6px;min-height:38px;">
+            ↩ Restore All
+        </button>
     </div>
 
     <div id="labels"></div>

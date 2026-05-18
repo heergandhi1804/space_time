@@ -160,33 +160,27 @@ function updateOrbitRing(p) {
 function showToast(m = 'Pause first!') { const t = document.getElementById('toast'); t.innerText = m; t.style.visibility = 'visible'; t.style.opacity = '1'; setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.style.visibility = 'hidden', 300); }, 2000); }
 
 function setStage(s) {
+    // Level 2 only exposes Stage 3 — redirect S1/S2 silently
+    if (s !== 3) s = 3;
     if (isPlaying) togglePlay();
     stage = s;
     planets.forEach(p => removePlanetFromScene(p));
     planets = []; lostPlanets = []; updateLostList();
     Object.values(labelEls).forEach(el => el.style.display = 'none');
 
-    document.getElementById('landing-hub').style.display = s === 0 ? 'block' : 'none';
-    document.getElementById('ui-header').style.display = s === 0 ? 'none' : 'block';
-    document.getElementById('btn-play').style.display = s === 0 ? 'none' : 'inline-block';
-    
+    document.getElementById('landing-hub').style.display = 'none';
+    document.getElementById('ui-header').style.display = 'block';
+    document.getElementById('btn-play').style.display = 'inline-block';
+
     const cockpit = document.getElementById('cockpit');
-    const custom = document.getElementById('custom-panel');
-    const escaped = document.getElementById('escaped-box');
-    if (cockpit) cockpit.style.visibility = s > 0 ? 'visible' : 'hidden';
-    if (custom) custom.style.visibility = s === 3 ? 'visible' : 'hidden';
-    if (escaped) escaped.style.visibility = (s > 0 && lostPlanets.length > 0) ? 'visible' : 'hidden';
+    if (cockpit) cockpit.style.visibility = 'visible';
 
-    // UI elements specific to stages (if any, e.g. hints)
     const hints = ['hint', 'hint-s1', 'hint-s2'];
-    hints.forEach(h => { if(document.getElementById(h)) document.getElementById(h).style.display = 'none'; });
-    if (s === 1 && document.getElementById('hint-s1')) document.getElementById('hint-s1').style.display = 'block';
-    if (s === 2 && document.getElementById('hint-s2')) document.getElementById('hint-s2').style.display = 'block';
-    if (s === 3 && document.getElementById('hint')) document.getElementById('hint').style.display = 'block';
+    hints.forEach(h => { const el = document.getElementById(h); if (el) el.style.display = 'none'; });
+    const hintEl = document.getElementById('hint');
+    if (hintEl) hintEl.style.display = 'block';
 
-    if (s === 1) resetStage1();
-    else if (s === 2) resetStage2();
-    else if (s === 3) resetStage3();
+    resetStage3();
     resetCamera();
 }
 
@@ -203,8 +197,23 @@ function updateLostList() {
     lostPlanets.forEach((p, i) => { const div = document.createElement('div'); div.className = 'escaped-item'; div.innerHTML = `<span>${p.name}</span><button onclick="restorePlanet(${i})">Restore</button>`; list.appendChild(div); });
     document.getElementById('escaped-box').style.visibility = lostPlanets.length > 0 ? 'visible' : 'hidden';
 }
-function restorePlanet(i) { if (isPlaying) return showToast(); const p = lostPlanets.splice(i, 1)[0]; planets.push(p); scene.add(p.mesh); scene.add(p.glow); if (p.orbitRing) scene.add(p.orbitRing); updateLostList(); }
-function restoreSystem() { if (isPlaying) return showToast(); if (stage === 1) resetStage1(); else if (stage === 2) resetStage2(); else if (stage === 3) resetStage3(); }
+function restorePlanet(i) {
+    if (isPlaying) return showToast();
+    const p = lostPlanets.splice(i, 1)[0];
+    if (sunObj) {
+        const ang = Math.random() * Math.PI * 2;
+        const r = Math.max(p.dist || p.initialR || 500, 300);
+        p.x = sunObj.x + Math.cos(ang) * r; p.z = sunObj.z + Math.sin(ang) * r;
+        const v = Math.sqrt(G * sunObj.mass / r);
+        p.vx = -Math.sin(ang) * v; p.vz = Math.cos(ang) * v;
+        p.isDynamic = true;
+    }
+    planets.push(p); scene.add(p.mesh); scene.add(p.glow);
+    if (p.orbitRing) scene.add(p.orbitRing);
+    if (p.extras && p.extras.ring) scene.add(p.extras.ring);
+    updateLostList();
+}
+function restoreSystem() { if (isPlaying) return showToast(); resetStage3(); }
 
 function updateTarget() {
     if (!selectedPlanets.length) return;
@@ -223,10 +232,18 @@ function hitTestPlanet(mx, my) {
 }
 
 window.addEventListener('pointerdown', e => {
-    if (e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #custom-panel')) return;
+    if (e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #s3-panel, #s3-edit-panel, #s3-dir-overlay')) return;
+    pointerDownX2 = e.clientX; pointerDownY2 = e.clientY;
     const hit = hitTestPlanet(e.clientX, e.clientY);
-    if (hit) { if (isPlaying) return showToast(); draggedPlanet = hit; if (!e.shiftKey) selectedPlanets = [hit]; else if (!selectedPlanets.includes(hit)) selectedPlanets.push(hit); }
-    else { isPanning = true; panStart.x = e.clientX; panStart.y = e.clientY; }
+    if (hit) {
+        if (s3PlacingMode) return; // in placing mode, ignore planet hits
+        if (isPlaying) return showToast();
+        draggedPlanet = hit;
+        if (!e.shiftKey) selectedPlanets = [hit]; else if (!selectedPlanets.includes(hit)) selectedPlanets.push(hit);
+        if (stage === 3 && hit !== sunObj) s3ShowEditPanel(hit);
+    } else {
+        isPanning = true; panStart.x = e.clientX; panStart.y = e.clientY;
+    }
 });
 const panStart = { x: 0, y: 0 };
 window.addEventListener('pointermove', e => {
@@ -235,10 +252,18 @@ window.addEventListener('pointermove', e => {
         if (draggedPlanet.primary) { draggedPlanet.dist = Math.hypot(draggedPlanet.x - draggedPlanet.primary.x, draggedPlanet.z - draggedPlanet.primary.z); draggedPlanet.angle = Math.atan2(draggedPlanet.z - draggedPlanet.primary.z, draggedPlanet.x - draggedPlanet.primary.x); }
         markOrbitDirty(draggedPlanet);
     } else if (isPanning) {
-        targetTheta -= (e.clientX - panStart.x) * 0.005; targetPhi = Math.max(0.1, Math.min(Math.PI / 2, targetPhi + (e.clientY - panStart.y) * 0.005)); panStart.x = e.clientX; panStart.y = e.clientY; autoFollow = false;
+        targetTheta -= (e.clientX - panStart.x) * 0.005; targetPhi = Math.max(0.05, Math.min(1.65, targetPhi + (e.clientY - panStart.y) * 0.005)); panStart.x = e.clientX; panStart.y = e.clientY; autoFollow = false;
     }
 });
-window.addEventListener('pointerup', () => { draggedPlanet = null; isPanning = false; });
+let pointerDownX2 = 0, pointerDownY2 = 0;
+window.addEventListener('pointerup', e => {
+    // Click-to-place in Stage 3 placing mode
+    if (stage === 3 && s3PlacingMode && Math.hypot(e.clientX - pointerDownX2, e.clientY - pointerDownY2) < 8) {
+        const wm = getWorldXZ(e.clientX, e.clientY);
+        s3PlacePlanet(wm.x, wm.z);
+    }
+    draggedPlanet = null; isPanning = false;
+});
 window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); });
 
 // ═══════════════════════════════════════════════════
@@ -269,9 +294,7 @@ function updateGrid() {
 // ═══════════════════════════════════════════════════
 
 function updatePhysics(dt) {
-    if (stage === 1) updateStage1Physics(dt);
-    else if (stage === 2 && isPlaying) updateStage2Physics(dt);
-    else if (stage === 3) updateStage3Physics(dt);
+    if (stage === 3) updateStage3Physics(dt);
 }
 
 function animate() {
@@ -292,7 +315,7 @@ function updateLabels() {
 window.addEventListener('load', () => {
     initFX();
     const urlParams = new URLSearchParams(window.location.search);
-    const startStage = parseInt(urlParams.get('stage')) || 0;
+    const startStage = parseInt(urlParams.get('stage')) || 1;
     setStage(startStage);
     animate();
 });
