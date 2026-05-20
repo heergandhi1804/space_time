@@ -150,25 +150,22 @@
             pointer-events: none; z-index: 5;
         }
 
-        /* ── L1S2 Direction Overlay ── */
-        #s2-dir-overlay {
+        /* ── L1S2 Direction Wheel ── */
+        #s2-dir-wheel {
             position: absolute; display: none;
-            flex-direction: column; gap: 8px;
-            background: rgba(0,0,0,.82); border: 1px solid rgba(100,220,255,.5);
-            border-radius: 12px; padding: 10px 12px;
-            z-index: 50; pointer-events: auto;
-            min-width: 178px;
+            flex-direction: column; align-items: center; gap: 8px;
+            background: rgba(0,5,20,.92); border: 1px solid rgba(80,200,255,.55);
+            border-radius: 14px; padding: 14px 12px;
+            z-index: 50; pointer-events: auto; user-select: none;
         }
-        #s2-dir-overlay .dir-title {
-            font-size: .8em; color: #aaeeff; text-align: center; font-weight: 700; margin-bottom: 2px;
+        #s2-dir-wheel .wheel-hint { font-size: .76em; color: #88ddff; text-align: center; }
+        .wheel-btns { display: flex; gap: 8px; }
+        .wheel-btns button {
+            padding: 9px 14px; border-radius: 9px; font-weight: 700;
+            font-size: .84em; cursor: pointer; min-height: 38px; border: 1px solid rgba(255,255,255,.25);
         }
-        #s2-dir-overlay button {
-            padding: 10px 8px; border: 1px solid rgba(255,255,255,.3);
-            border-radius: 8px; background: rgba(255,255,255,.12);
-            color: #fff; font-size: .88em; font-weight: 700; cursor: pointer;
-            text-align: left; min-height: 40px;
-        }
-        #s2-dir-overlay button:hover { background: rgba(100,200,255,.25); }
+        #s2-wheel-launch { background: rgba(80,200,100,.35); color: #afffbf; border-color: rgba(80,200,100,.5) !important; }
+        #s2-wheel-cancel { background: rgba(255,80,80,.18); color: #ffaaaa; border-color: rgba(255,80,80,.35) !important; }
 
         /* ── L1S3 Info Panel ── */
         #s3-info-box {
@@ -205,7 +202,7 @@
             .nav { flex-wrap: wrap; justify-content: center; }
             .btn { padding: 12px 16px; min-height: 44px; }
             #s3-info-box { right: 5%; width: 90%; top: auto; bottom: 8px; }
-            #s2-dir-overlay button { min-height: 48px; font-size: 1em; }
+            .wheel-btns button { min-height: 44px; font-size: .9em; }
         }
     </style>
 </head>
@@ -230,7 +227,7 @@
                 style="background:#88ff88;color:black;display:none">▶ Play</button>
         </div>
         <p id="hint-s1" style="display:none">Choose mass &amp; ball type · Tap the blanket to add balls · Tap a ball to select it</p>
-        <p id="hint-s2" style="display:none">Tap the blanket to place a ball · Choose its direction · Press Play!</p>
+        <p id="hint-s2" style="display:none">Tap the blanket to place a ball, aim the arrow, then launch!</p>
         <p id="hint-s3" style="display:none">Tap a planet to see its speed &amp; orbital state · Distances are scaled for learning</p>
     </div>
 
@@ -278,7 +275,7 @@
     <!-- ═══ STAGE 2 PANEL ═══ -->
     <div id="stage2-panel">
         <div class="panel-title" style="font-size:1em;text-align:center;margin-bottom:4px;color:#aaffaa;">
-            🎯 Place a ball · Choose its direction</div>
+            🎯 Direction Playground</div>
 
         <div class="panel-title">Ball Type</div>
         <div class="preset-grid two-col">
@@ -328,13 +325,14 @@
 
     </div>
 
-    <!-- ═══ L1S2 DIRECTION OVERLAY ═══ -->
-    <div id="s2-dir-overlay">
-        <div class="dir-title">Which way should it go?</div>
-        <button onclick="s2ChooseDirection('go_around')">↺ Go around<br><span style="font-size:.78em;opacity:.7">Tries to move around the center</span></button>
-        <button onclick="s2ChooseDirection('curve_in')">↗ Curve inward<br><span style="font-size:.78em;opacity:.7">Starts moving toward the center</span></button>
-        <button onclick="s2ChooseDirection('zoom_out')">🚀 Zoom outward<br><span style="font-size:.78em;opacity:.7">Starts moving away fast</span></button>
-        <button style="background:rgba(255,80,80,.18);border-color:rgba(255,80,80,.35);" onclick="s2CancelPlacement()">✕ Cancel</button>
+    <!-- ═══ L1S2 DIRECTION WHEEL ═══ -->
+    <div id="s2-dir-wheel">
+        <div class="wheel-hint">Move to aim · Launch when ready</div>
+        <canvas id="s2-wheel-canvas" width="160" height="160"></canvas>
+        <div class="wheel-btns">
+            <button id="s2-wheel-launch" onclick="s2WheelLaunch()">🚀 Launch!</button>
+            <button id="s2-wheel-cancel" onclick="s2CancelPlacement()">✕ Cancel</button>
+        </div>
     </div>
 
     <!-- ═══ ESCAPED PLANETS ═══ -->
@@ -355,7 +353,7 @@
         <div id="s3-info-state" style="font-size:.85em;font-weight:700;margin-bottom:3px;"></div>
         <div id="s3-info-ref"   style="font-size:.78em;color:#aabbcc;"></div>
         <div id="s3-info-note" style="font-size:.72em;color:#667788;margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:6px;">
-            Distances &amp; sizes are scaled for learning. Speeds &amp; periods are scientifically accurate.
+            Distances scaled for display.
         </div>
     </div>
 

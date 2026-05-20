@@ -28,7 +28,6 @@ function createS1CentralObject(m) {
 }
 
 function placeStage1Ball(wx, wz) {
-    // In stage 1 snap all balls to the horizontal axis for neat side-by-side comparison
     if (stage === 1) wz = 0;
     if (Math.abs(wx) > S1_PLACE_LIMIT || Math.abs(wz) > S1_PLACE_LIMIT) {
         return showToast('Tap on the blanket!');
@@ -36,11 +35,15 @@ function placeStage1Ball(wx, wz) {
     if (isPlaying) return showToast();
     if (!s1CentralObj) return;
     const r = Math.hypot(wx, wz);
-    if (r < s1CentralObj.radius + 45) return showToast('Too close to the center!');
 
     const preset = S1_BALL_PRESETS[s1Config.ballPreset];
     const mass = preset.mass, color = preset.color;
     const visualRadius = 12 + Math.sqrt(mass) * 2.8;
+
+    // Stage-aware minimum distance: prevent ball from starting inside the watermelon
+    const minDist = stage === 2 ? s1CentralObj.radius + visualRadius + 12 : s1CentralObj.radius + 45;
+    if (r < minDist) return showToast('Too close to the center!');
+
     const mesh = makeStage1BallMesh(mass, color);
     const glow = makeGlowSprite('Ball', color, visualRadius);
     scene.add(mesh); scene.add(glow);
@@ -49,10 +52,8 @@ function placeStage1Ball(wx, wz) {
     let vx = 0, vz = 0;
 
     if (stage === 2) {
-        // L1S2: place ball with zero velocity, then ask for direction via overlay
-        vx = 0; vz = 0;
+        vx = 0; vz = 0; // velocity set after direction wheel
     } else {
-        // L1S1: circular orbit velocity v = sqrt(GM/r) so balls naturally orbit
         const gravStrength = 22 * s1CentralObj.mass * (1.0 + mass * 0.004);
         const vCirc = Math.sqrt(gravStrength / Math.max(r, 1));
         vx = -uz * vCirc; vz = ux * vCirc;
@@ -69,7 +70,7 @@ function placeStage1Ball(wx, wz) {
 
     if (stage === 2) {
         s2PendingBall = ball;
-        showS2DirectionOverlay(wx, wz, ball);
+        showS2Wheel(ball);
     }
 }
 
@@ -100,7 +101,7 @@ function resetStage1Lab() {
     if (isPlaying) return showToast();
     s1Balls.forEach(b => { scene.remove(b.mesh); scene.remove(b.glow); });
     s1Balls = []; selectedS1Ball = null; s2PendingBall = null;
-    hideS2DirectionOverlay();
+    hideS2Wheel();
     const btn = document.getElementById('s1-remove-btn'); if (btn) btn.disabled = true;
     s1Config = { centralPreset: 'light', ballPreset: 'cometMango' };
     document.querySelectorAll('[data-central]').forEach(b => b.classList.toggle('active', b.dataset.central === 'light'));
@@ -109,24 +110,104 @@ function resetStage1Lab() {
     updateS1Counter(); showToast('Experiment Reset');
 }
 
-// ─── L1S2 Direction Overlay ───────────────────────────────────────────────
+// ─── L1S2 360° Direction Wheel ────────────────────────────────────────────
 
-function showS2DirectionOverlay(wx, wz, ball) {
-    const overlay = document.getElementById('s2-dir-overlay');
-    if (!overlay) return;
+let _s2WheelWorldAngle = 0;
 
-    // Project world pos to screen for positioning
-    const scr = projectToScreen(wx, 0, wz);
-    const px = scr.visible ? scr.x : window.innerWidth / 2;
-    const py = scr.visible ? scr.y : window.innerHeight / 2;
-    overlay.style.left = Math.min(Math.max(px - 90, 10), window.innerWidth - 190) + 'px';
-    overlay.style.top  = Math.min(Math.max(py - 70, 70), window.innerHeight - 120) + 'px';
-    overlay.style.display = 'flex';
+function _worldAngleToScreenAngle(worldAngle) {
+    if (!s2PendingBall) return worldAngle;
+    const bx = s2PendingBall.x, bz = s2PendingBall.z;
+    const scr0 = projectToScreen(bx, 0, bz);
+    const scr1 = projectToScreen(bx + Math.cos(worldAngle) * 80, 0, bz + Math.sin(worldAngle) * 80);
+    if (!scr0.visible) return worldAngle;
+    return Math.atan2(scr1.y - scr0.y, scr1.x - scr0.x);
 }
 
-function hideS2DirectionOverlay() {
-    const overlay = document.getElementById('s2-dir-overlay');
-    if (overlay) overlay.style.display = 'none';
+function _drawS2Wheel(screenAngle) {
+    const canvas = document.getElementById('s2-wheel-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2, R = W * 0.40;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background disc
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,10,30,0.6)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(80,200,255,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // Tick marks at 45° intervals
+    for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        const inner = R * 0.80, outer = R;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+        ctx.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
+        ctx.strokeStyle = 'rgba(80,200,255,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+
+    // Arrow body
+    const arrowLen = R * 0.68;
+    const ax = cx + Math.cos(screenAngle) * arrowLen;
+    const ay = cy + Math.sin(screenAngle) * arrowLen;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay);
+    ctx.strokeStyle = '#88ff88'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.stroke();
+
+    // Arrowhead
+    const headLen = 13, headAng = Math.PI / 5.5;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - headLen * Math.cos(screenAngle - headAng), ay - headLen * Math.sin(screenAngle - headAng));
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - headLen * Math.cos(screenAngle + headAng), ay - headLen * Math.sin(screenAngle + headAng));
+    ctx.strokeStyle = '#88ff88'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.stroke();
+
+    // Center dot
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#88ff88'; ctx.fill();
+}
+
+function showS2Wheel(ball) {
+    const wc = document.getElementById('s2-dir-wheel');
+    if (!wc) return;
+    const scr = projectToScreen(ball.x, 0, ball.z);
+    const px = scr.visible ? scr.x : window.innerWidth / 2;
+    const py = scr.visible ? scr.y : window.innerHeight / 2;
+    wc.style.left = Math.min(Math.max(px - 95, 10), window.innerWidth - 205) + 'px';
+    wc.style.top  = Math.min(Math.max(py - 240, 70), window.innerHeight - 250) + 'px';
+    wc.style.display = 'flex';
+    // Default: tangential CCW (circular orbit direction)
+    _s2WheelWorldAngle = Math.atan2(ball.z, ball.x) + Math.PI / 2;
+    _drawS2Wheel(_worldAngleToScreenAngle(_s2WheelWorldAngle));
+}
+
+function hideS2Wheel() {
+    const wc = document.getElementById('s2-dir-wheel');
+    if (wc) wc.style.display = 'none';
+}
+
+// Backward-compat alias used by level1_main.js setStage
+function hideS2DirectionOverlay() { hideS2Wheel(); }
+
+function s2WheelUpdateAngle(cx, cy) {
+    if (!s2PendingBall) return;
+    const { x: wx, z: wz } = getWorldXZ(cx, cy);
+    const dx = wx - s2PendingBall.x, dz = wz - s2PendingBall.z;
+    if (Math.hypot(dx, dz) < 30) return; // ignore jitter near ball
+    _s2WheelWorldAngle = Math.atan2(dz, dx);
+    _drawS2Wheel(_worldAngleToScreenAngle(_s2WheelWorldAngle));
+}
+
+function s2WheelLaunch() {
+    const ball = s2PendingBall;
+    if (!ball || !s1CentralObj) { hideS2Wheel(); return; }
+    const r = Math.hypot(ball.x, ball.z);
+    const gravStrength = 22 * s1CentralObj.mass * (1.0 + ball.mass * 0.004);
+    const vCirc = Math.sqrt(gravStrength / Math.max(r, 1));
+    ball.vx = Math.cos(_s2WheelWorldAngle) * vCirc;
+    ball.vz = Math.sin(_s2WheelWorldAngle) * vCirc;
+    s2PendingBall = null;
+    hideS2Wheel();
 }
 
 function s2CancelPlacement() {
@@ -136,31 +217,7 @@ function s2CancelPlacement() {
         s2PendingBall = null;
         updateS1Counter(); updateBlanketDeformation();
     }
-    hideS2DirectionOverlay();
-}
-
-function s2ChooseDirection(type) {
-    const ball = s2PendingBall;
-    if (!ball) { hideS2DirectionOverlay(); return; }
-    const r = Math.hypot(ball.x, ball.z);
-    const ux = ball.x / Math.max(r, 1), uz = ball.z / Math.max(r, 1);
-    // Circular speed at this distance, accounting for mass factor used in physics
-    const gravStrength = 22 * s1CentralObj.mass * (1.0 + ball.mass * 0.004);
-    const vCirc = Math.sqrt(gravStrength / Math.max(r, 1));
-    const tx = -uz, tz = ux; // tangential (clockwise)
-    if (type === 'go_around') {
-        ball.vx = tx * vCirc; ball.vz = tz * vCirc;
-    } else if (type === 'curve_in') {
-        // 45° between tangential and inward — elliptical, dips closer
-        const inx = -ux, inz = -uz;
-        ball.vx = (tx + inx) * 0.707 * vCirc * 0.85;
-        ball.vz = (tz + inz) * 0.707 * vCirc * 0.85;
-    } else if (type === 'zoom_out') {
-        // faster than circular — will escape or form outer ellipse
-        ball.vx = tx * vCirc * 1.4; ball.vz = tz * vCirc * 1.4;
-    }
-    s2PendingBall = null;
-    hideS2DirectionOverlay();
+    hideS2Wheel();
 }
 
 // ─── Physics ─────────────────────────────────────────────────────────────
@@ -171,22 +228,17 @@ function updateStage1Physics(dt) {
     const step = (dt * 110.0) / subs;
     const escapeDistance = 2500;
 
-    // gravityStrength is constant for this central mass; define at function scope
-    // Movement is produced by velocity + central gravitational acceleration each frame.
-    // Blanket deformation is visual only — it does not drive the physics.
     const gravityStrength = 22 * s1CentralObj.mass;
 
     for (let s = 0; s < subs; s++) {
         for (let i = s1Balls.length - 1; i >= 0; i--) {
             const b = s1Balls[i]; if (!b.alive) continue;
 
-            // Skip balls without direction assigned yet (L1S2 awaiting selection)
             if (b.vx === 0 && b.vz === 0 && b === s2PendingBall) continue;
 
             const r = Math.max(Math.hypot(b.x, b.z), 1);
             const ux = b.x / r, uz = b.z / r;
 
-            // GM/r² gravity toward central mass only
             const effectiveGravity = gravityStrength * (1.0 + b.mass * 0.004);
             let accel = effectiveGravity / (r * r);
             accel = Math.min(accel, 25000);
@@ -194,7 +246,8 @@ function updateStage1Physics(dt) {
             b.vx -= accel * ux * step; b.vz -= accel * uz * step;
             b.x  += b.vx * step;      b.z  += b.vz * step;
 
-            const absorbRadius = s1CentralObj.radius + 15;
+            // Stage-aware absorb: stage 2 balls have their own radius, prevent eating them on surface
+            const absorbRadius = stage === 2 ? s1CentralObj.radius + b.radius + 10 : s1CentralObj.radius + 15;
             if (r < absorbRadius) {
                 const scr = projectToScreen(b.x, 0, b.z);
                 if (scr.visible) {
@@ -209,7 +262,6 @@ function updateStage1Physics(dt) {
         }
     }
 
-    // Per-ball: orbit / escape classification
     for (let i = s1Balls.length - 1; i >= 0; i--) {
         const b = s1Balls[i];
         const r = Math.hypot(b.x, b.z);
@@ -218,7 +270,6 @@ function updateStage1Physics(dt) {
         const tangentialSpeed = Math.abs(b.vx * -uz + b.vz * ux);
         const radialRatio = Math.abs(outwardSpeed) / Math.max(tangentialSpeed, 0.001);
 
-        // Escape velocity check: v² < 2GM/r means bound orbit
         const vSq = b.vx * b.vx + b.vz * b.vz;
         const vEscSq = (2 * gravityStrength) / Math.max(r, 1);
         const isBound = vSq < vEscSq;
@@ -237,7 +288,6 @@ function updateStage1Physics(dt) {
             b.orbitTimer = Math.max(0, b.orbitTimer - dt * 2.0);
         }
 
-        // Gentle circularization only for stable bound orbits
         if (b.orbitCelebrated && isBound) {
             const radialSpeed = b.vx * ux + b.vz * uz;
             b.vx -= radialSpeed * 0.018 * ux;

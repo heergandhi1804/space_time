@@ -32,12 +32,12 @@ function checkStage3Escapes() {
 
 // Compute real normalized speed for a planet (kinematic vs dynamic)
 function getS3PlanetSpeed(p) {
-    if (!p || p === sunObj) return 0;
+    if (!p || p === sunObj || !sunObj) return 0;
     if (p.stage2Modified) {
         return Math.hypot(p.vx, p.vz);
     }
-    // Kinematic: compute expected circular speed
-    const r = p.dist;
+    // Kinematic: use current actual distance so speed varies as orbit shifts
+    const r = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
     return r > 0 ? Math.sqrt(G * sunObj.mass / r) : 0;
 }
 
@@ -80,11 +80,25 @@ function updateS3InfoPanel(hoveredName) {
     const state = getS3OrbitalState(p);
     const stateColor = { Stable: '#88ff88', Orbiting: '#88ff88', 'Falling In': '#ffaa44', Escaping: '#ff6644' }[state] || '#fff';
     if (nameEl) nameEl.textContent = p.name;
-    if (speedEl) speedEl.textContent = realData ? realData.speedKms + ' km/s  (' + realData.speedMph.toLocaleString() + ' mph)' : '';
+    if (speedEl && realData) {
+        // Scale speed by sqrt(initialR / currentDist) — faster when closer, slower when farther
+        const currentDist = Math.hypot(p.x - (sunObj ? sunObj.x : 0), p.z - (sunObj ? sunObj.z : 0));
+        const initialR = p.initialR || p.dist || currentDist;
+        const ratio = initialR > 0 ? Math.sqrt(initialR / Math.max(currentDist, 1)) : 1;
+        const dynSpeed = (realData.speedKms * ratio).toFixed(1);
+        // Speed trend: moving toward sun means speeding up
+        let trend = '';
+        if (p._prevDisplayDist !== undefined) {
+            if (currentDist < p._prevDisplayDist - 1.5) trend = ' ↑';
+            else if (currentDist > p._prevDisplayDist + 1.5) trend = ' ↓';
+        }
+        p._prevDisplayDist = currentDist;
+        speedEl.textContent = dynSpeed + ' km/s' + trend;
+    }
     if (stateEl) { stateEl.textContent = state; stateEl.style.color = stateColor; }
     if (refEl && realData) {
         const d = realData.periodDays;
-        const label = d >= 365 ? (d / 365.25).toFixed(1) + ' Earth years' : d + ' Earth days';
+        const label = d >= 365 ? (d / 365.25).toFixed(1) + ' yr' : d + ' days';
         refEl.textContent = 'Period: ' + label;
     }
 }

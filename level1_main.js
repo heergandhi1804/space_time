@@ -239,9 +239,15 @@ function updateOrbitRing(p) {
 }
 
 function createOrbitRing(p) {
-    const geo = new THREE.RingGeometry(0.998, 1.002, 128);
+    // Widen ring and tint it with a brightened version of the planet's color
+    const raw = typeof p.color === 'number' ? p.color : parseInt(String(p.color).replace('#', ''), 16);
+    const rr = Math.min(255, ((raw >> 16) & 0xff) + 80);
+    const rg = Math.min(255, ((raw >> 8) & 0xff) + 80);
+    const rb = Math.min(255, (raw & 0xff) + 80);
+    const ringColor = (rr << 16) | (rg << 8) | rb;
+    const geo = new THREE.RingGeometry(0.993, 1.007, 128);
     const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: 0x6699ff, transparent: true, opacity: 0.45,
+        color: ringColor, transparent: true, opacity: 0.60,
         side: THREE.DoubleSide, depthWrite: false
     }));
     ring.rotation.x = Math.PI / 2;
@@ -441,6 +447,8 @@ let s1PlacementBlocked = false;
 renderer.domElement.addEventListener('pointerdown', e => {
     s1PlacementBlocked = false;
     if (e.target.closest('#landing-hub, #ui-header, div[id$="-panel"], #escaped-box')) return;
+    // While direction wheel is showing, block all canvas interactions
+    if (stage === 2 && s2PendingBall) return;
     pointerDownX = e.clientX; pointerDownY = e.clientY;
     const hit = hitTestPlanet(e.clientX, e.clientY);
     if (hit) {
@@ -461,6 +469,11 @@ renderer.domElement.addEventListener('pointerdown', e => {
 });
 
 window.addEventListener('pointermove', e => {
+    // Redirect all pointer moves to wheel aiming while direction is being chosen
+    if (stage === 2 && s2PendingBall) {
+        if (typeof s2WheelUpdateAngle === 'function') s2WheelUpdateAngle(e.clientX, e.clientY);
+        return;
+    }
     if (draggedPlanet) {
         let { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
         // Clamp drag to blanket bounds in stages 1/2 only
