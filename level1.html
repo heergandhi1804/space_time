@@ -150,22 +150,31 @@
             pointer-events: none; z-index: 5;
         }
 
-        /* ── L1S2 Direction Wheel ── */
+        /* ── L1S2 Horizontal Aim Pad ── */
         #s2-dir-wheel {
-            position: absolute; display: none;
-            flex-direction: column; align-items: center; gap: 8px;
-            background: rgba(0,5,20,.92); border: 1px solid rgba(80,200,255,.55);
-            border-radius: 14px; padding: 14px 12px;
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            display: none; flex-direction: row; align-items: center; gap: 20px;
+            background: rgba(5,8,24,.90); border: 1px solid rgba(160,195,255,.18);
+            border-radius: 18px; padding: 14px 22px;
             z-index: 50; pointer-events: auto; user-select: none;
+            box-shadow: 0 4px 32px rgba(0,0,0,.55);
         }
-        #s2-dir-wheel .wheel-hint { font-size: .76em; color: #88ddff; text-align: center; }
-        .wheel-btns { display: flex; gap: 8px; }
-        .wheel-btns button {
-            padding: 9px 14px; border-radius: 9px; font-weight: 700;
-            font-size: .84em; cursor: pointer; min-height: 38px; border: 1px solid rgba(255,255,255,.25);
+        .aim-side { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+        .aim-label { font-size: .78em; color: #a8c8f0; font-weight: 600; letter-spacing: .06em; text-align: center; }
+        #s2-wheel-launch {
+            padding: 11px 18px; border-radius: 10px;
+            background: rgba(55,155,95,.4); color: #b0f0cc;
+            border: 1px solid rgba(55,190,110,.4); font-weight: 700;
+            font-size: .88em; cursor: pointer; min-height: 42px;
         }
-        #s2-wheel-launch { background: rgba(80,200,100,.35); color: #afffbf; border-color: rgba(80,200,100,.5) !important; }
-        #s2-wheel-cancel { background: rgba(255,80,80,.18); color: #ffaaaa; border-color: rgba(255,80,80,.35) !important; }
+        #s2-wheel-launch:hover { background: rgba(55,175,105,.58); }
+        #s2-wheel-cancel {
+            padding: 9px 18px; border-radius: 10px;
+            background: rgba(170,55,55,.25); color: #f0b0b0;
+            border: 1px solid rgba(200,70,70,.3); font-weight: 600;
+            font-size: .84em; cursor: pointer; min-height: 38px;
+        }
+        #s2-wheel-cancel:hover { background: rgba(195,65,65,.38); }
 
         /* ── L1S3 Info Panel ── */
         #s3-info-box {
@@ -202,7 +211,9 @@
             .nav { flex-wrap: wrap; justify-content: center; }
             .btn { padding: 12px 16px; min-height: 44px; }
             #s3-info-box { right: 5%; width: 90%; top: auto; bottom: 8px; }
-            .wheel-btns button { min-height: 44px; font-size: .9em; }
+            #s2-dir-wheel { padding: 12px 16px; gap: 14px; bottom: 16px; }
+            #s2-aim-pad { width: 150px !important; height: 150px !important; }
+            #s2-wheel-launch, #s2-wheel-cancel { min-height: 44px; font-size: .9em; padding: 10px 14px; }
         }
     </style>
 </head>
@@ -252,16 +263,16 @@
         <div class="panel-title" style="margin-top:4px;">Ball Type</div>
         <div class="preset-grid two-col">
             <button class="preset-btn active" data-ball="cometMango" onclick="selectS1BallPreset('cometMango')">
-                🟠 Comet Mango
+                🟠 Mega Marshmallow
             </button>
             <button class="preset-btn" data-ball="tinyRocket" onclick="selectS1BallPreset('tinyRocket')">
-                🔴 Tiny Rocket
+                🔴 The Comet
             </button>
             <button class="preset-btn" data-ball="spaceMarble" onclick="selectS1BallPreset('spaceMarble')">
-                🔵 Space Marble
+                🔵 The Marble
             </button>
             <button class="preset-btn" data-ball="orbitBerry" onclick="selectS1BallPreset('orbitBerry')">
-                🟣 Orbit Berry
+                🟣 The Bullet
             </button>
         </div>
 
@@ -280,16 +291,16 @@
         <div class="panel-title">Ball Type</div>
         <div class="preset-grid two-col">
             <button class="preset-btn active" data-ball="cometMango" onclick="selectS1BallPreset('cometMango')">
-                🟠 Comet Mango
+                🟠 Mega Marshmallow
             </button>
             <button class="preset-btn" data-ball="tinyRocket" onclick="selectS1BallPreset('tinyRocket')">
-                🔴 Tiny Rocket
+                🔴 The Comet
             </button>
             <button class="preset-btn" data-ball="spaceMarble" onclick="selectS1BallPreset('spaceMarble')">
-                🔵 Space Marble
+                🔵 The Marble
             </button>
             <button class="preset-btn" data-ball="orbitBerry" onclick="selectS1BallPreset('orbitBerry')">
-                🟣 Orbit Berry
+                🟣 The Bullet
             </button>
         </div>
 
@@ -325,11 +336,11 @@
 
     </div>
 
-    <!-- ═══ L1S2 DIRECTION WHEEL ═══ -->
+    <!-- ═══ L1S2 AIM PAD ═══ -->
     <div id="s2-dir-wheel">
-        <div class="wheel-hint">Move to aim · Launch when ready</div>
-        <canvas id="s2-wheel-canvas" width="160" height="160"></canvas>
-        <div class="wheel-btns">
+        <canvas id="s2-aim-pad" width="180" height="180"></canvas>
+        <div class="aim-side">
+            <div class="aim-label">Aim</div>
             <button id="s2-wheel-launch" onclick="s2WheelLaunch()">🚀 Launch!</button>
             <button id="s2-wheel-cancel" onclick="s2CancelPlacement()">✕ Cancel</button>
         </div>

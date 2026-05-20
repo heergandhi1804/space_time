@@ -110,10 +110,11 @@ function resetStage1Lab() {
     updateS1Counter(); showToast('Experiment Reset');
 }
 
-// ─── L1S2 360° Direction Wheel ────────────────────────────────────────────
+// ─── L1S2 Horizontal Aim Pad ──────────────────────────────────────────────
 
 let _s2WheelWorldAngle = 0;
 
+// Convert a world-space velocity angle to the screen-space angle needed to draw it on the pad canvas
 function _worldAngleToScreenAngle(worldAngle) {
     if (!s2PendingBall) return worldAngle;
     const bx = s2PendingBall.x, bz = s2PendingBall.z;
@@ -123,58 +124,71 @@ function _worldAngleToScreenAngle(worldAngle) {
     return Math.atan2(scr1.y - scr0.y, scr1.x - scr0.x);
 }
 
+// Convert a screen-space angle (drag direction on pad) to a world-space velocity angle
+function _screenAngleToWorldAngle(screenAngle) {
+    if (!s2PendingBall) return screenAngle;
+    const bx = s2PendingBall.x, bz = s2PendingBall.z;
+    const scr0 = projectToScreen(bx, 0, bz);
+    if (!scr0.visible) return screenAngle;
+    const scrX = projectToScreen(bx + 80, 0, bz);
+    const scrZ = projectToScreen(bx, 0, bz + 80);
+    const xdx = scrX.x - scr0.x, xdy = scrX.y - scr0.y;
+    const zdx = scrZ.x - scr0.x, zdy = scrZ.y - scr0.y;
+    const sd = { x: Math.cos(screenAngle), y: Math.sin(screenAngle) };
+    const xLen = Math.hypot(xdx, xdy) || 1, zLen = Math.hypot(zdx, zdy) || 1;
+    const worldX = (sd.x * xdx + sd.y * xdy) / xLen;
+    const worldZ = (sd.x * zdx + sd.y * zdy) / zLen;
+    return Math.atan2(worldZ, worldX);
+}
+
+// Draw the direction arrow on the aim pad canvas
 function _drawS2Wheel(screenAngle) {
-    const canvas = document.getElementById('s2-wheel-canvas');
+    const canvas = document.getElementById('s2-aim-pad');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2, R = W * 0.40;
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.42;
     ctx.clearRect(0, 0, W, H);
 
-    // Background disc
+    // Soft pad background — no harsh ring, no tick marks
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    bg.addColorStop(0, 'rgba(50,80,140,0.35)');
+    bg.addColorStop(1, 'rgba(10,18,45,0.25)');
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0,10,30,0.6)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(80,200,255,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.strokeStyle = 'rgba(160,195,255,0.18)'; ctx.lineWidth = 1.2; ctx.stroke();
 
-    // Tick marks at 45° intervals
-    for (let i = 0; i < 8; i++) {
-        const a = i * Math.PI / 4;
-        const inner = R * 0.80, outer = R;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
-        ctx.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
-        ctx.strokeStyle = 'rgba(80,200,255,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
-    }
-
-    // Arrow body
-    const arrowLen = R * 0.68;
-    const ax = cx + Math.cos(screenAngle) * arrowLen;
-    const ay = cy + Math.sin(screenAngle) * arrowLen;
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay);
-    ctx.strokeStyle = '#88ff88'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.stroke();
+    // Direction line from center to handle
+    const hR = R * 0.68;
+    const hx = cx + Math.cos(screenAngle) * hR;
+    const hy = cy + Math.sin(screenAngle) * hR;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy);
+    ctx.strokeStyle = 'rgba(180,215,255,0.75)'; ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round'; ctx.stroke();
 
     // Arrowhead
-    const headLen = 13, headAng = Math.PI / 5.5;
+    const hL = 11, hA = Math.PI / 5;
     ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(ax - headLen * Math.cos(screenAngle - headAng), ay - headLen * Math.sin(screenAngle - headAng));
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(ax - headLen * Math.cos(screenAngle + headAng), ay - headLen * Math.sin(screenAngle + headAng));
-    ctx.strokeStyle = '#88ff88'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx - hL * Math.cos(screenAngle - hA), hy - hL * Math.sin(screenAngle - hA));
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx - hL * Math.cos(screenAngle + hA), hy - hL * Math.sin(screenAngle + hA));
+    ctx.strokeStyle = '#c8e0ff'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+
+    // Handle dot (drag indicator)
+    ctx.beginPath(); ctx.arc(hx, hy, 9.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(hx, hy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(120,185,255,0.9)'; ctx.fill();
 
     // Center dot
-    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-    ctx.fillStyle = '#88ff88'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(180,215,255,0.45)'; ctx.fill();
 }
 
 function showS2Wheel(ball) {
     const wc = document.getElementById('s2-dir-wheel');
     if (!wc) return;
-    const scr = projectToScreen(ball.x, 0, ball.z);
-    const px = scr.visible ? scr.x : window.innerWidth / 2;
-    const py = scr.visible ? scr.y : window.innerHeight / 2;
-    wc.style.left = Math.min(Math.max(px - 95, 10), window.innerWidth - 205) + 'px';
-    wc.style.top  = Math.min(Math.max(py - 240, 70), window.innerHeight - 250) + 'px';
     wc.style.display = 'flex';
     // Default: tangential CCW (circular orbit direction)
     _s2WheelWorldAngle = Math.atan2(ball.z, ball.x) + Math.PI / 2;
@@ -191,16 +205,23 @@ function hideS2DirectionOverlay() { hideS2Wheel(); }
 
 function s2WheelUpdateAngle(cx, cy) {
     if (!s2PendingBall) return;
-    const { x: wx, z: wz } = getWorldXZ(cx, cy);
-    const dx = wx - s2PendingBall.x, dz = wz - s2PendingBall.z;
-    if (Math.hypot(dx, dz) < 30) return; // ignore jitter near ball
-    _s2WheelWorldAngle = Math.atan2(dz, dx);
-    _drawS2Wheel(_worldAngleToScreenAngle(_s2WheelWorldAngle));
+    // Direction = angle from pad canvas center to pointer position
+    const canvas = document.getElementById('s2-aim-pad');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const padCx = rect.left + rect.width / 2;
+    const padCy = rect.top + rect.height / 2;
+    const dx = cx - padCx, dy = cy - padCy;
+    if (Math.hypot(dx, dy) < 8) return; // ignore tiny jitter near pad center
+    const screenAngle = Math.atan2(dy, dx);
+    _s2WheelWorldAngle = _screenAngleToWorldAngle(screenAngle);
+    _drawS2Wheel(screenAngle);
 }
 
 function s2WheelLaunch() {
     const ball = s2PendingBall;
     if (!ball || !s1CentralObj) { hideS2Wheel(); return; }
+    // ── Physics unchanged ── magnitude = circular orbit speed, direction = chosen angle
     const r = Math.hypot(ball.x, ball.z);
     const gravStrength = 22 * s1CentralObj.mass * (1.0 + ball.mass * 0.004);
     const vCirc = Math.sqrt(gravStrength / Math.max(r, 1));

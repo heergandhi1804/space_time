@@ -44,12 +44,12 @@ const S1_CENTRAL_PRESETS = {
     heavy:  { mass: 260 }
 };
 
-// Ball presets with emoji names
+// Ball presets — names: big+slow=Mega Marshmallow, big+fast=Comet, small+slow=Marble, small+fast=Bullet
 const S1_BALL_PRESETS = {
-    cometMango:  { mass: 150, baseSpeed: 2.8, color: 0xff8844, label: '🟠 Comet Mango' },
-    tinyRocket:  { mass: 150, baseSpeed: 6.2, color: 0xffcc44, label: '🔴 Tiny Rocket' },
-    spaceMarble: { mass: 30,  baseSpeed: 2.8, color: 0x66c8ff, label: '🔵 Space Marble' },
-    orbitBerry:  { mass: 30,  baseSpeed: 6.2, color: 0xcc66ff, label: '🟣 Orbit Berry' }
+    cometMango:  { mass: 150, baseSpeed: 2.8, color: 0xff8844, label: '🟠 The Mega Marshmallow' },
+    tinyRocket:  { mass: 150, baseSpeed: 6.2, color: 0xffcc44, label: '🔴 The Comet' },
+    spaceMarble: { mass: 30,  baseSpeed: 2.8, color: 0x66c8ff, label: '🔵 The Marble' },
+    orbitBerry:  { mass: 30,  baseSpeed: 6.2, color: 0xcc66ff, label: '🟣 The Bullet' }
 };
 
 let s1Config = { centralPreset: 'light', ballPreset: 'cometMango' };
