@@ -16,14 +16,14 @@ let stage2SpeedMode = 'normal';
 
 // Real orbital data for L1S3 display (scientifically accurate labels)
 const SOLAR_REAL = {
-    Mercury: { speedKms: 47.87, speedMph: 107082, periodDays: 88 },
-    Venus:   { speedKms: 35.02, speedMph: 78337,  periodDays: 225 },
-    Earth:   { speedKms: 29.78, speedMph: 66615,  periodDays: 365.25 },
-    Mars:    { speedKms: 24.08, speedMph: 53858,  periodDays: 687 },
-    Jupiter: { speedKms: 13.07, speedMph: 29236,  periodDays: 4307 },
-    Saturn:  { speedKms: 9.69,  speedMph: 21675,  periodDays: 10768 },
-    Uranus:  { speedKms: 6.81,  speedMph: 15233,  periodDays: 30660 },
-    Neptune: { speedKms: 5.43,  speedMph: 12146,  periodDays: 60190 }
+    Mercury: { speedKms: 47.87, speedMph: 107082, periodDays: 88,     distKm: 57.9 },
+    Venus:   { speedKms: 35.02, speedMph: 78337,  periodDays: 225,    distKm: 108.2 },
+    Earth:   { speedKms: 29.78, speedMph: 66615,  periodDays: 365.25, distKm: 149.6 },
+    Mars:    { speedKms: 24.08, speedMph: 53858,  periodDays: 687,    distKm: 227.9 },
+    Jupiter: { speedKms: 13.07, speedMph: 29236,  periodDays: 4307,   distKm: 778.5 },
+    Saturn:  { speedKms: 9.69,  speedMph: 21675,  periodDays: 10768,  distKm: 1432 },
+    Uranus:  { speedKms: 6.81,  speedMph: 15233,  periodDays: 30660,  distKm: 2867 },
+    Neptune: { speedKms: 5.43,  speedMph: 12146,  periodDays: 60190,  distKm: 4515 }
 };
 
 const SOLAR = [

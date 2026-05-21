@@ -309,6 +309,7 @@ function checkPlanetCrashes() {
             if (stage === 3 && typeof _s3FocusPlanet !== 'undefined' && _s3FocusPlanet === p) {
                 _s3FocusPlanet = null;
                 if (typeof updateS3InfoPanel === 'function') updateS3InfoPanel(null);
+                if (typeof closeS3Popup === 'function') closeS3Popup();
             }
             removePlanetFromScene(p); planets.splice(i, 1);
         }
@@ -319,7 +320,6 @@ function removePlanetFromScene(p) {
     scene.remove(p.mesh); scene.remove(p.glow);
     if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
     if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
-    if (p.escapeRing) { scene.remove(p.escapeRing); if (p.escapeRing.geometry) p.escapeRing.geometry.dispose(); if (p.escapeRing.material) p.escapeRing.material.dispose(); p.escapeRing = null; }
     if (p.trailLine) { scene.remove(p.trailLine); if (p.trailLine.geometry) p.trailLine.geometry.dispose(); if (p.trailLine.material) p.trailLine.material.dispose(); p.trailLine = null; }
 }
 
@@ -337,7 +337,6 @@ function setStage(s) {
         scene.remove(p.mesh); scene.remove(p.glow);
         if (p.orbitRing) scene.remove(p.orbitRing);
         if (p.extras && p.extras.ring) scene.remove(p.extras.ring);
-        if (p.escapeRing) scene.remove(p.escapeRing);
         if (p.trailLine) scene.remove(p.trailLine);
     });
     planets = []; lostPlanets = []; updateLostList();
@@ -349,8 +348,9 @@ function setStage(s) {
     document.getElementById('stage2-panel').style.display = s === 2 ? 'flex' : 'none';
     document.getElementById('stage3-panel').style.display = s === 3 ? 'flex' : 'none';
     document.getElementById('btn-play').style.display = s === 0 ? 'none' : 'inline-block';
-    const infoBox = document.getElementById('s3-info-box');
-    if (infoBox) infoBox.style.display = s === 3 ? 'block' : 'none';
+    const infoBtn = document.getElementById('s3-info-btn');
+    if (infoBtn) infoBtn.style.display = s === 3 ? 'inline-block' : 'none';
+    if (typeof closeS3Popup === 'function') closeS3Popup();
     ['hint-s1','hint-s2','hint-s3'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
     const hintMap = { 1: 'hint-s1', 2: 'hint-s2', 3: 'hint-s3' };
     if (hintMap[s]) { const el = document.getElementById(hintMap[s]); if (el) el.style.display = 'inline-block'; }
@@ -416,7 +416,6 @@ function restorePlanet(i) {
     scene.add(p.mesh); scene.add(p.glow);
     if (p.orbitRing) scene.add(p.orbitRing);
     if (p.extras && p.extras.ring) scene.add(p.extras.ring);
-    if (stage === 3 && typeof s3CreateEscapeRing === 'function') s3CreateEscapeRing(p);
     p.history = []; // clear stale trail
     syncMeshPosition(p); updateLostList();
 }

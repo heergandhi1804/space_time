@@ -7,11 +7,11 @@ function resetStage3SolarSystem() {
     planets.forEach(p => {
         scene.remove(p.mesh); scene.remove(p.glow);
         if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
-        if (p.escapeRing) { scene.remove(p.escapeRing); if (p.escapeRing.geometry) p.escapeRing.geometry.dispose(); if (p.escapeRing.material) p.escapeRing.material.dispose(); p.escapeRing = null; }
         if (p.trailLine) { scene.remove(p.trailLine); if (p.trailLine.geometry) p.trailLine.geometry.dispose(); if (p.trailLine.material) p.trailLine.material.dispose(); p.trailLine = null; }
         if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
     });
     planets = []; lostPlanets = []; _s3FocusPlanet = null; updateLostList();
+    if (typeof closeS3Popup === 'function') closeS3Popup();
 
     sunObj = addPlanet(0, 0, 180, 0xFFD700, 'SUN', 0);
     SOLAR.forEach((p, i) => {
@@ -20,35 +20,11 @@ function resetStage3SolarSystem() {
         const pz = Math.sin(angle) * p.r;
         const pl = addPlanet(px, pz, p.m, p.c, p.name, p.r);
         createOrbitRing(pl);
-        s3CreateEscapeRing(pl);
         pl.stage2Modified = false;
     });
 
     updateS3InfoPanel(null);
     showToast('Solar System Ready!');
-}
-
-// ─── Escape Ring ───────────────────────────────────────────────────────────────
-
-function s3CreateEscapeRing(p) {
-    if (!p || p === sunObj) return;
-    s3RemoveEscapeRing(p);
-    const geo = new THREE.RingGeometry(0.986, 1.014, 128);
-    const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: 0xff2222, transparent: true, opacity: 0.40,
-        side: THREE.DoubleSide, depthWrite: false
-    }));
-    ring.rotation.x = Math.PI / 2;
-    scene.add(ring);
-    p.escapeRing = ring;
-}
-
-function s3RemoveEscapeRing(p) {
-    if (!p || !p.escapeRing) return;
-    scene.remove(p.escapeRing);
-    if (p.escapeRing.geometry) p.escapeRing.geometry.dispose();
-    if (p.escapeRing.material) p.escapeRing.material.dispose();
-    p.escapeRing = null;
 }
 
 // ─── Trail ────────────────────────────────────────────────────────────────────
@@ -90,15 +66,6 @@ function getS3PlanetSpeed(p) {
     return p.initialR > 0 ? Math.sqrt(G * sunObj.mass / p.initialR) : 0;
 }
 
-// Distance from Sun at which this planet's current speed equals escape speed.
-// rEscape = 2GM / v²  →  vEsc(rEscape) = sqrt(2GM/rEscape) = v
-function getS3EscapeRadius(p) {
-    if (!p || p === sunObj || !sunObj) return Infinity;
-    const v = getS3PlanetSpeed(p);
-    if (v <= 0) return Infinity;
-    return (2 * G * sunObj.mass) / (v * v);
-}
-
 // Inner radius below which the planet is in the fall-in danger zone.
 function getS3InnerDangerRadius(p) {
     if (!p || p === sunObj || !sunObj) return 0;
@@ -126,37 +93,34 @@ function getS3OrbitalState(p) {
     return 'Orbiting';
 }
 
-// ─── Visual ring & glow updates (called from updateOrbitRing each frame) ──────
+// ─── Smooth orbit ring color via heat lerp (called from updateOrbitRing each frame) ──────
+
+const _s3HeatColA = new THREE.Color(), _s3HeatColB = new THREE.Color();
 
 function updateS3RingVisuals(p) {
     if (!sunObj || p === sunObj) return;
 
-    const r = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
     const state = getS3OrbitalState(p);
-    const rEscape = getS3EscapeRadius(p);
-    const innerDanger = getS3InnerDangerRadius(p);
 
-    // ── Orbit guide ring color ────────────────────────────────────────────────
+    // Heat: 0 = safe, 0.8 = escaping, 1.0 = falling in
+    const targetHeat = state === 'Falling In' ? 1.0 : state === 'Escaping' ? 0.8 : 0.0;
+    if (p._orbitHeat === undefined) p._orbitHeat = targetHeat;
+    p._orbitHeat += (targetHeat - p._orbitHeat) * 0.07;
+
+    // ── Orbit guide ring: lerp between planet's base color and danger red ────
     if (p.orbitRing && p.orbitRing.material) {
-        let col;
-        if (state === 'Falling In' || r < innerDanger * 1.25) {
-            col = 0xff4422;
-        } else if (state === 'Escaping' || (p.stage2Modified && isFinite(rEscape) && r >= rEscape)) {
-            col = 0xff2222;
+        const baseCol  = p._orbitRingBaseColor !== undefined ? p._orbitRingBaseColor : 0x88aaff;
+        const alertCol = state === 'Falling In' ? 0xff4422 : 0xff8822;
+        _s3HeatColA.setHex(baseCol);
+        _s3HeatColB.setHex(alertCol);
+        _s3HeatColA.lerp(_s3HeatColB, Math.min(1, Math.max(0, p._orbitHeat)));
+        p.orbitRing.material.color.copy(_s3HeatColA);
+        // Subtle pulse when in danger
+        if (p._orbitHeat > 0.05) {
+            const pulse = Math.sin(Date.now() * 0.005) * 0.12 + 0.88;
+            p.orbitRing.material.opacity = 0.60 + p._orbitHeat * 0.25 * pulse;
         } else {
-            col = p._orbitRingBaseColor !== undefined ? p._orbitRingBaseColor : 0x88aaff;
-        }
-        p.orbitRing.material.color.setHex(col);
-    }
-
-    // ── Escape threshold ring — placed at rEscape from the Sun ────────────────
-    if (p.escapeRing) {
-        if (isFinite(rEscape) && rEscape > 0 && rEscape < STAGE2_ESCAPE_DIST * 1.5) {
-            p.escapeRing.scale.set(rEscape, rEscape, 1);
-            p.escapeRing.position.set(sunObj.x, p.mesh ? p.mesh.position.y : 0, sunObj.z);
-            p.escapeRing.visible = true;
-        } else {
-            p.escapeRing.visible = false;
+            p.orbitRing.material.opacity = 0.60;
         }
     }
 
@@ -195,90 +159,86 @@ function checkStage3Escapes() {
         const s = projectToScreen(p.x, 0, p.z);
         if (s.visible) {
             spawnParticles(s.x, s.y, { count: 26, color: '#66ccff', life: 42, speed: 5.5, ring: true });
-            showFloatingMessage('Escaped!', '#8fdcff');
+            showFloatingMessage('Escaped! 🚀', '#8fdcff');
         }
 
-        s3RemoveEscapeRing(p);
         if (p.trailLine) { scene.remove(p.trailLine); if (p.trailLine.geometry) p.trailLine.geometry.dispose(); if (p.trailLine.material) p.trailLine.material.dispose(); p.trailLine = null; }
         scene.remove(p.mesh); scene.remove(p.glow);
         if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
         if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
-        if (_s3FocusPlanet === p) { _s3FocusPlanet = null; updateS3InfoPanel(null); }
+        if (_s3FocusPlanet === p) {
+            _s3FocusPlanet = null;
+            updateS3InfoPanel(null);
+            if (typeof closeS3Popup === 'function') closeS3Popup();
+        }
         planets.splice(i, 1);
         lostPlanets.push(p);
         updateLostList();
     }
 }
 
-// ─── Info Panel ───────────────────────────────────────────────────────────────
+// ─── Info Popup ───────────────────────────────────────────────────────────────
 
 let _s3FocusPlanet = null;
 
 function updateS3InfoPanel(hoveredName) {
-    const panel = document.getElementById('s3-info-box');
-    if (!panel) return;
     if (hoveredName) {
-        const p = planets.find(pl => pl.name === hoveredName);
-        _s3FocusPlanet = p || null;
+        const found = planets.find(pl => pl.name === hoveredName);
+        _s3FocusPlanet = found || null;
     }
     const p = _s3FocusPlanet;
-    const nameEl   = document.getElementById('s3-info-name');
-    const speedEl  = document.getElementById('s3-info-speed');
-    const distEl   = document.getElementById('s3-info-dist');
-    const escapeEl = document.getElementById('s3-info-escape');
-    const stateEl  = document.getElementById('s3-info-state');
-    const refEl    = document.getElementById('s3-info-ref');
+
+    const emptyEl  = document.getElementById('s3-popup-empty');
+    const dataEl   = document.getElementById('s3-popup-data');
+    const nameEl   = document.getElementById('s3-popup-name');
+    const badgeEl  = document.getElementById('s3-popup-badge');
+    const distEl   = document.getElementById('s3-popup-dist');
+    const speedEl  = document.getElementById('s3-popup-speed');
+    const periodEl = document.getElementById('s3-popup-period');
 
     if (!p || p === sunObj) {
-        if (nameEl)   nameEl.textContent = 'Click a planet';
-        if (speedEl)  speedEl.textContent = '';
-        if (distEl)   distEl.textContent = '';
-        if (escapeEl) escapeEl.textContent = '';
-        if (stateEl)  stateEl.textContent = '';
-        if (refEl)    refEl.textContent = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        if (dataEl)  dataEl.style.display  = 'none';
         return;
     }
 
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (dataEl)  dataEl.style.display  = 'block';
+
     const realData = SOLAR_REAL[p.name];
     const state = getS3OrbitalState(p);
-    const stateColor = { Orbiting: '#88ff88', 'Falling In': '#ff6644', Escaping: '#ff3333' }[state] || '#fff';
+    const stateConfig = {
+        'Orbiting':   { badge: '🟢 Safe Orbit',   color: '#66ee88' },
+        'Falling In': { badge: '⚠️ Too Close!',   color: '#ff9944' },
+        'Escaping':   { badge: '🚀 Flying Away!',  color: '#ff7755' }
+    };
+    const sc = stateConfig[state] || { badge: state, color: '#fff' };
 
-    const dist = Math.hypot(p.x - (sunObj ? sunObj.x : 0), p.z - (sunObj ? sunObj.z : 0));
-    const rEscape = getS3EscapeRadius(p);
-    const initialR = Math.max(p.initialR || dist, 1);
+    if (nameEl)  nameEl.textContent = p.name;
+    if (badgeEl) { badgeEl.textContent = sc.badge; badgeEl.style.color = sc.color; }
 
-    if (nameEl) nameEl.textContent = p.name;
+    if (distEl && realData && realData.distKm) {
+        const dist = Math.hypot(p.x - (sunObj ? sunObj.x : 0), p.z - (sunObj ? sunObj.z : 0));
+        const ratio = dist / Math.max(p.initialR || dist, 1);
+        const kmVal = Math.round(realData.distKm * ratio);
+        distEl.textContent = '📍 ' + kmVal.toLocaleString() + ' million km from Sun';
+    } else if (distEl) {
+        distEl.textContent = '';
+    }
 
     if (speedEl && realData) {
-        speedEl.textContent = 'Speed: ' + realData.speedKms.toFixed(2) + ' km/s';
+        speedEl.textContent = '⚡ ' + realData.speedKms.toFixed(1) + ' km/s';
     }
 
-    if (distEl) {
-        const ratio = (dist / initialR).toFixed(2);
-        distEl.textContent = 'Distance: ' + ratio + 'x default';
-        distEl.style.color = state === 'Falling In' ? '#ff8844' : '#ccddff';
-    }
-
-    if (escapeEl) {
-        if (isFinite(rEscape)) {
-            const escRatio = (rEscape / initialR).toFixed(2);
-            escapeEl.textContent = 'Escape zone: beyond ' + escRatio + 'x default';
-            escapeEl.style.color = state === 'Escaping' ? '#ff3333' : '#ff9966';
-        } else {
-            escapeEl.textContent = '';
-        }
-    }
-
-    if (stateEl) { stateEl.textContent = 'State: ' + state; stateEl.style.color = stateColor; }
-
-    if (refEl && realData) {
+    if (periodEl && realData) {
         const d = realData.periodDays;
-        const label = d >= 365 ? (d / 365.25).toFixed(1) + ' yr' : d + ' days';
-        refEl.textContent = 'Period: ' + label;
+        const label = d >= 365 ? (d / 365.25).toFixed(1) + ' years' : d + ' days';
+        periodEl.textContent = '🔄 Orbits Sun in ' + label;
     }
 }
 
 function s3SelectPlanet(name) {
     _s3FocusPlanet = planets.find(p => p.name === name) || null;
     updateS3InfoPanel(null);
+    if (typeof openS3Popup === 'function') openS3Popup();
 }
