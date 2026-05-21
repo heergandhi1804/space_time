@@ -40,9 +40,10 @@ function placeStage1Ball(wx, wz) {
     const mass = preset.mass, color = preset.color;
     const visualRadius = 12 + Math.sqrt(mass) * 2.8;
 
-    // Stage-aware minimum distance: prevent ball from starting inside the watermelon
-    const minDist = stage === 2 ? s1CentralObj.radius + visualRadius + 12 : s1CentralObj.radius + 45;
-    if (r < minDist) return showToast('Too close to the center!');
+    // Placement safety: keep ball outside the watermelon safe radius
+    // safeRadius = watermelonRadius + ballRadius + margin
+    const minDist = stage === 2 ? s1CentralObj.radius + visualRadius + 25 : s1CentralObj.radius + 45;
+    if (r < minDist) return showToast('Too close to the watermelon!');
 
     const mesh = makeStage1BallMesh(mass, color);
     const glow = makeGlowSprite('Ball', color, visualRadius);
@@ -69,8 +70,15 @@ function placeStage1Ball(wx, wz) {
     updateBlanketDeformation();
 
     if (stage === 2) {
+        // Clear any stale aim visuals before accepting the new pending ball
+        s2Aiming = false;
+        s2AimPointerMoved = false;
+        s2RemoveAimArrow();
+        // === OPTIONAL PROJECTED PATH START ===
+        s2RemoveProjectedPath();
+        // === OPTIONAL PROJECTED PATH END ===
         s2PendingBall = ball;
-        showS2Wheel(ball);
+        // Ball awaits: user must tap the ball to start in-scene aiming
     }
 }
 
@@ -101,7 +109,11 @@ function resetStage1Lab() {
     if (isPlaying) return showToast();
     s1Balls.forEach(b => { scene.remove(b.mesh); scene.remove(b.glow); });
     s1Balls = []; selectedS1Ball = null; s2PendingBall = null;
-    hideS2Wheel();
+    s2Aiming = false; s2AimPointerMoved = false;
+    s2RemoveAimArrow();
+    // === OPTIONAL PROJECTED PATH START ===
+    s2RemoveProjectedPath();
+    // === OPTIONAL PROJECTED PATH END ===
     const btn = document.getElementById('s1-remove-btn'); if (btn) btn.disabled = true;
     s1Config = { centralPreset: 'light', ballPreset: 'cometMango' };
     document.querySelectorAll('[data-central]').forEach(b => b.classList.toggle('active', b.dataset.central === 'light'));
@@ -110,136 +122,203 @@ function resetStage1Lab() {
     updateS1Counter(); showToast('Experiment Reset');
 }
 
-// ─── L1S2 Horizontal Aim Pad ──────────────────────────────────────────────
+// ─── L1S2 In-Scene Pool-Table Aiming ─────────────────────────────────────
 
-let _s2WheelWorldAngle = 0;
+let s2AimArrow = null;      // THREE.ArrowHelper placed in the 3D scene
+let s2AimWorldDirX = 1;     // current aim direction (world XZ plane, normalized)
+let s2AimWorldDirZ = 0;
 
-// Convert a world-space velocity angle to the screen-space angle needed to draw it on the pad canvas
-function _worldAngleToScreenAngle(worldAngle) {
-    if (!s2PendingBall) return worldAngle;
-    const bx = s2PendingBall.x, bz = s2PendingBall.z;
-    const scr0 = projectToScreen(bx, 0, bz);
-    const scr1 = projectToScreen(bx + Math.cos(worldAngle) * 80, 0, bz + Math.sin(worldAngle) * 80);
-    if (!scr0.visible) return worldAngle;
-    return Math.atan2(scr1.y - scr0.y, scr1.x - scr0.x);
-}
+const S2_ARROW_LENGTH = 200;
+const S2_ARROW_HEAD   = 48;
+const S2_ARROW_WIDTH  = 22;
+const S2_ARROW_COLOR  = 0x99ddff;
 
-// Convert a screen-space angle (drag direction on pad) to a world-space velocity angle
-function _screenAngleToWorldAngle(screenAngle) {
-    if (!s2PendingBall) return screenAngle;
-    const bx = s2PendingBall.x, bz = s2PendingBall.z;
-    const scr0 = projectToScreen(bx, 0, bz);
-    if (!scr0.visible) return screenAngle;
-    const scrX = projectToScreen(bx + 80, 0, bz);
-    const scrZ = projectToScreen(bx, 0, bz + 80);
-    const xdx = scrX.x - scr0.x, xdy = scrX.y - scr0.y;
-    const zdx = scrZ.x - scr0.x, zdy = scrZ.y - scr0.y;
-    const sd = { x: Math.cos(screenAngle), y: Math.sin(screenAngle) };
-    const xLen = Math.hypot(xdx, xdy) || 1, zLen = Math.hypot(zdx, zdy) || 1;
-    const worldX = (sd.x * xdx + sd.y * xdy) / xLen;
-    const worldZ = (sd.x * zdx + sd.y * zdy) / zLen;
-    return Math.atan2(worldZ, worldX);
-}
-
-// Draw the direction arrow on the aim pad canvas
-function _drawS2Wheel(screenAngle) {
-    const canvas = document.getElementById('s2-aim-pad');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.42;
-    ctx.clearRect(0, 0, W, H);
-
-    // Soft pad background — no harsh ring, no tick marks
-    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-    bg.addColorStop(0, 'rgba(50,80,140,0.35)');
-    bg.addColorStop(1, 'rgba(10,18,45,0.25)');
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = bg; ctx.fill();
-    ctx.strokeStyle = 'rgba(160,195,255,0.18)'; ctx.lineWidth = 1.2; ctx.stroke();
-
-    // Direction line from center to handle
-    const hR = R * 0.68;
-    const hx = cx + Math.cos(screenAngle) * hR;
-    const hy = cy + Math.sin(screenAngle) * hR;
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy);
-    ctx.strokeStyle = 'rgba(180,215,255,0.75)'; ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round'; ctx.stroke();
-
-    // Arrowhead
-    const hL = 11, hA = Math.PI / 5;
-    ctx.beginPath();
-    ctx.moveTo(hx, hy);
-    ctx.lineTo(hx - hL * Math.cos(screenAngle - hA), hy - hL * Math.sin(screenAngle - hA));
-    ctx.moveTo(hx, hy);
-    ctx.lineTo(hx - hL * Math.cos(screenAngle + hA), hy - hL * Math.sin(screenAngle + hA));
-    ctx.strokeStyle = '#c8e0ff'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
-
-    // Handle dot (drag indicator)
-    ctx.beginPath(); ctx.arc(hx, hy, 9.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(hx, hy, 7, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(120,185,255,0.9)'; ctx.fill();
-
-    // Center dot
-    ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(180,215,255,0.45)'; ctx.fill();
-}
-
-function showS2Wheel(ball) {
-    const wc = document.getElementById('s2-dir-wheel');
-    if (!wc) return;
-    wc.style.display = 'flex';
-    // Default: tangential CCW (circular orbit direction)
-    _s2WheelWorldAngle = Math.atan2(ball.z, ball.x) + Math.PI / 2;
-    _drawS2Wheel(_worldAngleToScreenAngle(_s2WheelWorldAngle));
-}
-
-function hideS2Wheel() {
-    const wc = document.getElementById('s2-dir-wheel');
-    if (wc) wc.style.display = 'none';
-}
-
-// Backward-compat alias used by level1_main.js setStage
-function hideS2DirectionOverlay() { hideS2Wheel(); }
-
-function s2WheelUpdateAngle(cx, cy) {
+// Called when user clicks/touches the placed ball — activates aiming mode
+function s2StartAim(clientX, clientY) {
     if (!s2PendingBall) return;
-    // Direction = angle from pad canvas center to pointer position
-    const canvas = document.getElementById('s2-aim-pad');
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const padCx = rect.left + rect.width / 2;
-    const padCy = rect.top + rect.height / 2;
-    const dx = cx - padCx, dy = cy - padCy;
-    if (Math.hypot(dx, dy) < 8) return; // ignore tiny jitter near pad center
-    const screenAngle = Math.atan2(dy, dx);
-    _s2WheelWorldAngle = _screenAngleToWorldAngle(screenAngle);
-    _drawS2Wheel(screenAngle);
+    s2Aiming = true;
+    s2AimPointerMoved = false;
+
+    // Default direction: tangential CCW (classic orbit direction)
+    const bx = s2PendingBall.x, bz = s2PendingBall.z;
+    const r = Math.hypot(bx, bz);
+    if (r > 1) { s2AimWorldDirX = -bz / r; s2AimWorldDirZ = bx / r; }
+    else        { s2AimWorldDirX = 1;        s2AimWorldDirZ = 0; }
+
+    s2CreateAimArrow();
+    // === OPTIONAL PROJECTED PATH START ===
+    s2CreateProjectedPath();
+    // === OPTIONAL PROJECTED PATH END ===
 }
 
-function s2WheelLaunch() {
-    const ball = s2PendingBall;
-    if (!ball || !s1CentralObj) { hideS2Wheel(); return; }
-    // ── Physics unchanged ── magnitude = circular orbit speed, direction = chosen angle
-    const r = Math.hypot(ball.x, ball.z);
-    const gravStrength = 22 * s1CentralObj.mass * (1.0 + ball.mass * 0.004);
-    const vCirc = Math.sqrt(gravStrength / Math.max(r, 1));
-    ball.vx = Math.cos(_s2WheelWorldAngle) * vCirc;
-    ball.vz = Math.sin(_s2WheelWorldAngle) * vCirc;
-    s2PendingBall = null;
-    hideS2Wheel();
-}
-
-function s2CancelPlacement() {
-    if (s2PendingBall) {
-        scene.remove(s2PendingBall.mesh); scene.remove(s2PendingBall.glow);
-        s1Balls = s1Balls.filter(b => b !== s2PendingBall);
-        s2PendingBall = null;
-        updateS1Counter(); updateBlanketDeformation();
+function s2CreateAimArrow() {
+    s2RemoveAimArrow();
+    if (!s2PendingBall) return;
+    const dir    = new THREE.Vector3(s2AimWorldDirX, 0, s2AimWorldDirZ).normalize();
+    const origin = s2PendingBall.mesh.position.clone();
+    origin.y += 12; // lift above ball surface so arrow is visible above blanket
+    s2AimArrow = new THREE.ArrowHelper(dir, origin, S2_ARROW_LENGTH, S2_ARROW_COLOR, S2_ARROW_HEAD, S2_ARROW_WIDTH);
+    if (s2AimArrow.line && s2AimArrow.line.material) {
+        s2AimArrow.line.material.transparent = true;
+        s2AimArrow.line.material.opacity = 0.88;
     }
-    hideS2Wheel();
+    if (s2AimArrow.cone && s2AimArrow.cone.material) {
+        s2AimArrow.cone.material.transparent = true;
+        s2AimArrow.cone.material.opacity = 0.92;
+    }
+    scene.add(s2AimArrow);
 }
+
+function s2RemoveAimArrow() {
+    if (!s2AimArrow) return;
+    scene.remove(s2AimArrow);
+    s2AimArrow.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+    });
+    s2AimArrow = null;
+}
+
+// Sync arrow position to ball mesh and update its direction
+function s2UpdateAimArrowVisual() {
+    if (!s2AimArrow || !s2PendingBall) return;
+    const dir    = new THREE.Vector3(s2AimWorldDirX, 0, s2AimWorldDirZ).normalize();
+    const origin = s2PendingBall.mesh.position.clone();
+    origin.y += 12;
+    s2AimArrow.position.copy(origin);
+    s2AimArrow.setDirection(dir);
+}
+
+// Update aim direction from pointer/touch position in screen space
+function s2UpdateAimFromPointer(clientX, clientY) {
+    if (!s2PendingBall) return;
+
+    // Cast ray from camera through pointer; intersect horizontal plane at ball's Y
+    mouse2d.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(mouse2d, camera);
+    const ballY    = s2PendingBall.mesh.position.y;
+    const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -ballY);
+    const pt       = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(aimPlane, pt)) return;
+
+    const dx = pt.x - s2PendingBall.x;
+    const dz = pt.z - s2PendingBall.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 15) return; // pointer too close to ball center — keep current direction
+
+    s2AimWorldDirX = dx / len;
+    s2AimWorldDirZ = dz / len;
+    s2UpdateAimArrowVisual();
+
+    // === OPTIONAL PROJECTED PATH START ===
+    s2UpdateProjectedPath();
+    // === OPTIONAL PROJECTED PATH END ===
+}
+
+// Launch the ball using the current aim direction.
+// Speed magnitude is UNCHANGED from the original wheel logic — only direction source differs.
+function s2LaunchFromAim() {
+    const ball = s2PendingBall;
+    if (!ball || !s1CentralObj) { s2CancelAim(); return; }
+
+    // ── Velocity magnitude: circular orbit speed (same formula as before) ──
+    const r           = Math.hypot(ball.x, ball.z);
+    const gravStrength = 22 * s1CentralObj.mass * (1.0 + ball.mass * 0.004);
+    const vCirc        = Math.sqrt(gravStrength / Math.max(r, 1));
+    ball.vx = s2AimWorldDirX * vCirc;
+    ball.vz = s2AimWorldDirZ * vCirc;
+
+    s2PendingBall     = null;
+    s2Aiming          = false;
+    s2AimPointerMoved = false;
+    s2RemoveAimArrow();
+    // === OPTIONAL PROJECTED PATH START ===
+    s2RemoveProjectedPath();
+    // === OPTIONAL PROJECTED PATH END ===
+}
+
+// Cancel aiming: remove the unlaunched ball and clean up all aim visuals
+function s2CancelAim() {
+    if (s2PendingBall) {
+        scene.remove(s2PendingBall.mesh);
+        scene.remove(s2PendingBall.glow);
+        s1Balls = s1Balls.filter(b => b !== s2PendingBall);
+        updateS1Counter();
+        updateBlanketDeformation();
+    }
+    s2PendingBall     = null;
+    s2Aiming          = false;
+    s2AimPointerMoved = false;
+    s2RemoveAimArrow();
+    // === OPTIONAL PROJECTED PATH START ===
+    s2RemoveProjectedPath();
+    // === OPTIONAL PROJECTED PATH END ===
+}
+
+// ── Legacy aliases used by setStage / resetStage1Lab across files ─────────
+function showS2Wheel(ball) { /* replaced by in-scene aiming — no panel to show */ }
+function hideS2Wheel() {
+    s2Aiming = false; s2AimPointerMoved = false;
+    s2RemoveAimArrow();
+    // === OPTIONAL PROJECTED PATH START ===
+    s2RemoveProjectedPath();
+    // === OPTIONAL PROJECTED PATH END ===
+}
+function hideS2DirectionOverlay() { hideS2Wheel(); }
+function s2WheelLaunch()           { s2LaunchFromAim(); }
+function s2CancelPlacement()       { s2CancelAim(); }
+function s2WheelUpdateAngle(cx,cy) { if (s2Aiming) s2UpdateAimFromPointer(cx, cy); }
+
+// === OPTIONAL PROJECTED PATH START ===
+// Faint dashed guide line showing the straight-line launch direction from the ball.
+// Delete everything between these markers to remove the projected path feature.
+// Launching works correctly without this section — it is purely visual.
+
+let s2PathLine = null;
+
+function s2CreateProjectedPath() {
+    s2RemoveProjectedPath();
+    if (!s2PendingBall) return;
+    const numPts = 14, spacing = 38;
+    const points = [];
+    for (let i = 1; i <= numPts; i++) {
+        const px = s2PendingBall.x + s2AimWorldDirX * spacing * i;
+        const pz = s2PendingBall.z + s2AimWorldDirZ * spacing * i;
+        const py = computeBlanketY(px, pz, s2PendingBall) + s2PendingBall.radius * 0.35 + 6;
+        points.push(new THREE.Vector3(px, py, pz));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineDashedMaterial({
+        color: 0x99ddff, transparent: true, opacity: 0.28,
+        dashSize: 22, gapSize: 14, depthWrite: false
+    });
+    s2PathLine = new THREE.Line(geo, mat);
+    s2PathLine.computeLineDistances();
+    scene.add(s2PathLine);
+}
+
+function s2UpdateProjectedPath() {
+    if (!s2PathLine || !s2PendingBall) { s2CreateProjectedPath(); return; }
+    const numPts = 14, spacing = 38;
+    const pos = s2PathLine.geometry.attributes.position;
+    for (let i = 0; i < numPts; i++) {
+        const px = s2PendingBall.x + s2AimWorldDirX * spacing * (i + 1);
+        const pz = s2PendingBall.z + s2AimWorldDirZ * spacing * (i + 1);
+        const py = computeBlanketY(px, pz, s2PendingBall) + s2PendingBall.radius * 0.35 + 6;
+        pos.setXYZ(i, px, py, pz);
+    }
+    pos.needsUpdate = true;
+    s2PathLine.computeLineDistances();
+}
+
+function s2RemoveProjectedPath() {
+    if (!s2PathLine) return;
+    scene.remove(s2PathLine);
+    s2PathLine.geometry.dispose();
+    s2PathLine.material.dispose();
+    s2PathLine = null;
+}
+// === OPTIONAL PROJECTED PATH END ===
 
 // ─── Physics ─────────────────────────────────────────────────────────────
 

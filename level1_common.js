@@ -57,4 +57,6 @@ const S1_BLANKET_HALF = 1100;
 const S1_PLACE_LIMIT = 980;
 
 // L1S2: pending direction selection state
-let s2PendingBall = null; // ball awaiting direction choice
+let s2PendingBall = null;   // ball awaiting direction choice
+let s2Aiming = false;        // true when the 3D aim arrow is visible
+let s2AimPointerMoved = false; // true if pointer moved since aim session started (drag detection)

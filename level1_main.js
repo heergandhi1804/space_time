@@ -233,9 +233,10 @@ function syncMeshPosition(p) {
 function updateOrbitRing(p) {
     if (!p.orbitRing || !sunObj) return;
     const r = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
-    // Position ring at planet's actual mesh y so it passes through the planet center
     p.orbitRing.scale.set(r, r, 1);
     p.orbitRing.position.set(sunObj.x, p.mesh.position.y, sunObj.z);
+    // S3: update ring colors, escape ring, and trail each frame
+    if (stage === 3 && typeof updateS3RingVisuals === 'function') updateS3RingVisuals(p);
 }
 
 function createOrbitRing(p) {
@@ -245,6 +246,7 @@ function createOrbitRing(p) {
     const rg = Math.min(255, ((raw >> 8) & 0xff) + 80);
     const rb = Math.min(255, (raw & 0xff) + 80);
     const ringColor = (rr << 16) | (rg << 8) | rb;
+    p._orbitRingBaseColor = ringColor; // saved for dynamic re-coloring in S3
     const geo = new THREE.RingGeometry(0.993, 1.007, 128);
     const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
         color: ringColor, transparent: true, opacity: 0.60,
@@ -294,8 +296,19 @@ function checkPlanetCrashes() {
         if (dSun < (p.mass * 0.45) + (sunObj.mass * 0.45) + 8) {
             const s = projectToScreen(p.x, 0, p.z);
             if (s.visible) {
-                spawnParticles(s.x, s.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true, huge: true });
-                showFloatingMessage('Crash!', '#ffb080');
+                if (stage === 3) {
+                    // Child-friendly burst: two-layer explosion — glow ring + sparks
+                    spawnParticles(s.x, s.y, { count: 50, color: '#ffaa44', life: 65, speed: 5.5, ring: true, huge: true });
+                    spawnParticles(s.x, s.y, { count: 24, color: '#ffdd88', life: 45, speed: 3.2 });
+                    showFloatingMessage('Falling In! 💥', '#ff8844');
+                } else {
+                    spawnParticles(s.x, s.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true, huge: true });
+                    showFloatingMessage('Crash!', '#ffb080');
+                }
+            }
+            if (stage === 3 && typeof _s3FocusPlanet !== 'undefined' && _s3FocusPlanet === p) {
+                _s3FocusPlanet = null;
+                if (typeof updateS3InfoPanel === 'function') updateS3InfoPanel(null);
             }
             removePlanetFromScene(p); planets.splice(i, 1);
         }
@@ -306,6 +319,8 @@ function removePlanetFromScene(p) {
     scene.remove(p.mesh); scene.remove(p.glow);
     if (p.orbitRing) { scene.remove(p.orbitRing); p.orbitRing = null; }
     if (p.extras && p.extras.ring) { scene.remove(p.extras.ring); p.extras.ring = null; }
+    if (p.escapeRing) { scene.remove(p.escapeRing); if (p.escapeRing.geometry) p.escapeRing.geometry.dispose(); if (p.escapeRing.material) p.escapeRing.material.dispose(); p.escapeRing = null; }
+    if (p.trailLine) { scene.remove(p.trailLine); if (p.trailLine.geometry) p.trailLine.geometry.dispose(); if (p.trailLine.material) p.trailLine.material.dispose(); p.trailLine = null; }
 }
 
 // --- STAGE SWITCHER ---
@@ -322,6 +337,8 @@ function setStage(s) {
         scene.remove(p.mesh); scene.remove(p.glow);
         if (p.orbitRing) scene.remove(p.orbitRing);
         if (p.extras && p.extras.ring) scene.remove(p.extras.ring);
+        if (p.escapeRing) scene.remove(p.escapeRing);
+        if (p.trailLine) scene.remove(p.trailLine);
     });
     planets = []; lostPlanets = []; updateLostList();
     Object.values(labelEls).forEach(el => el.style.display = 'none');
@@ -353,7 +370,7 @@ function setStage(s) {
 
 function togglePlay() {
     if (stage === 3 && planets.filter(p => p !== sunObj).length < 1 && !isPlaying) return showToast('No planets yet!');
-    if (s2PendingBall && !isPlaying) return showToast('Choose a direction first!');
+    if (s2PendingBall && !isPlaying) return showToast('Tap the ball to aim and launch first!');
     isPlaying = !isPlaying;
     document.getElementById('btn-play').innerText = isPlaying ? '⏸ Pause' : '▶ Play';
     if (!isPlaying) speedFactor = 0;
@@ -399,6 +416,8 @@ function restorePlanet(i) {
     scene.add(p.mesh); scene.add(p.glow);
     if (p.orbitRing) scene.add(p.orbitRing);
     if (p.extras && p.extras.ring) scene.add(p.extras.ring);
+    if (stage === 3 && typeof s3CreateEscapeRing === 'function') s3CreateEscapeRing(p);
+    p.history = []; // clear stale trail
     syncMeshPosition(p); updateLostList();
 }
 
@@ -444,12 +463,33 @@ function updateLabels() {
 
 // --- INPUT ---
 let s1PlacementBlocked = false;
+let _s3DragSavedSpeed = 0; // speed saved at drag-start so release keeps magnitude
 renderer.domElement.addEventListener('pointerdown', e => {
     s1PlacementBlocked = false;
     if (e.target.closest('#landing-hub, #ui-header, div[id$="-panel"], #escaped-box')) return;
-    // While direction wheel is showing, block all canvas interactions
-    if (stage === 2 && s2PendingBall) return;
+
+    // Always record pointer position so pointerup placement distance check is correct
     pointerDownX = e.clientX; pointerDownY = e.clientY;
+
+    // ── L1S2 in-scene aiming: two-phase intercept ────────────────────────
+    if (stage === 2 && s2PendingBall) {
+        if (!s2Aiming) {
+            // Phase 1 – waiting: only a click on the placed ball activates aiming
+            const hit = hitTestPlanet(e.clientX, e.clientY);
+            if (hit === s2PendingBall) {
+                s2AimPointerMoved = false;
+                s2StartAim(e.clientX, e.clientY);
+            }
+            // Clicks on empty space are silently ignored while waiting
+        } else {
+            // Phase 2 – aiming: any scene click launches immediately
+            s2LaunchFromAim();
+            s1PlacementBlocked = true; // prevent pointerup from placing a new ball
+        }
+        return;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     const hit = hitTestPlanet(e.clientX, e.clientY);
     if (hit) {
         if (stage === 1) {
@@ -458,8 +498,19 @@ renderer.domElement.addEventListener('pointerdown', e => {
             if (s1Balls.includes(hit)) selectS1Ball(hit);
             return;
         }
+        // L1S2: launched balls are locked — never allow dragging them after launch
+        if (stage === 2 && s1Balls.includes(hit)) {
+            isPanning = true; panStart = { x: e.clientX, y: e.clientY };
+            return;
+        }
         if (isPlaying) return showToast();
         if (hit === sunObj && stage !== 3) { isPanning = true; panStart = { x: e.clientX, y: e.clientY }; return; }
+        // L1S3: save current speed magnitude before drag begins
+        if (stage === 3 && hit !== sunObj && sunObj) {
+            _s3DragSavedSpeed = hit.stage2Modified
+                ? Math.hypot(hit.vx, hit.vz)
+                : Math.sqrt(G * sunObj.mass / Math.max(hit.initialR || 300, 1));
+        }
         draggedPlanet = hit;
         const { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
         prevDragPt.set(wx, 0, wz);
@@ -469,10 +520,13 @@ renderer.domElement.addEventListener('pointerdown', e => {
 });
 
 window.addEventListener('pointermove', e => {
-    // Redirect all pointer moves to wheel aiming while direction is being chosen
+    // L1S2: while a pending ball exists, block camera panning; feed moves to the aim arrow
     if (stage === 2 && s2PendingBall) {
-        if (typeof s2WheelUpdateAngle === 'function') s2WheelUpdateAngle(e.clientX, e.clientY);
-        return;
+        if (s2Aiming) {
+            s2AimPointerMoved = true;
+            s2UpdateAimFromPointer(e.clientX, e.clientY);
+        }
+        return; // block panning in both waiting and aiming phases
     }
     if (draggedPlanet) {
         let { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
@@ -480,6 +534,16 @@ window.addEventListener('pointermove', e => {
         if (stage === 1 || stage === 2) {
             wx = Math.max(-S1_PLACE_LIMIT, Math.min(S1_PLACE_LIMIT, wx));
             wz = Math.max(-S1_PLACE_LIMIT, Math.min(S1_PLACE_LIMIT, wz));
+        }
+        // L1S3: clamp drag so planet cannot visually clip through the Sun
+        if (stage === 3 && sunObj && draggedPlanet !== sunObj) {
+            const ddx = wx - sunObj.x, ddz = wz - sunObj.z;
+            const ddist = Math.hypot(ddx, ddz);
+            const minClamp = (sunObj.mass * 0.45) + (draggedPlanet.mass * 0.45) + 12;
+            if (ddist > 0 && ddist < minClamp) {
+                wx = sunObj.x + (ddx / ddist) * minClamp;
+                wz = sunObj.z + (ddz / ddist) * minClamp;
+            }
         }
         if (stage === 2) draggedPlanet.stage2Modified = true;
         draggedPlanet.x = wx; draggedPlanet.z = wz;
@@ -493,6 +557,16 @@ window.addEventListener('pointermove', e => {
 });
 
 window.addEventListener('pointerup', e => {
+    // L1S2 drag-to-launch: if user dragged since clicking the ball, release fires the ball
+    if (stage === 2 && s2Aiming) {
+        if (s2AimPointerMoved) {
+            s2LaunchFromAim(); // dragged → launch on release
+        }
+        // else: tap-on-ball with no drag → stay in pointing mode; next click will launch
+        draggedPlanet = null; isPanning = false; s1PlacementBlocked = false;
+        return;
+    }
+
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) < 5 && (stage === 1 || stage === 2) && !draggedPlanet && !s1PlacementBlocked && !s2PendingBall) {
         const { x: wx, z: wz } = getWorldXZ(e.clientX, e.clientY);
         placeStage1Ball(wx, wz);
@@ -504,26 +578,23 @@ window.addEventListener('pointerup', e => {
 
     if (draggedPlanet && stage === 3 && sunObj && draggedPlanet !== sunObj) {
         const dx = draggedPlanet.x - sunObj.x, dz = draggedPlanet.z - sunObj.z;
-        const dist = Math.hypot(dx, dz);
-        const minSafe = (sunObj.mass * 0.45) + (draggedPlanet.mass * 0.45) + 80;
-        if (dist < minSafe) {
-            const mag = Math.max(dist, 1);
-            draggedPlanet.x = sunObj.x + (dx / mag) * minSafe;
-            draggedPlanet.z = sunObj.z + (dz / mag) * minSafe;
-            showToast('Too close to the Sun!');
-            const uz = dz / mag, ux = dx / mag;
-            const v = Math.sqrt(G * sunObj.mass / minSafe);
-            draggedPlanet.vx = -uz * v; draggedPlanet.vz = ux * v;
-        } else {
-            const ux = dx / dist, uz = dz / dist;
-            const v = Math.sqrt(G * sunObj.mass / dist);
-            draggedPlanet.vx = -uz * v; draggedPlanet.vz = ux * v;
-        }
+        const dist = Math.max(Math.hypot(dx, dz), 1);
+        const ux = dx / dist, uz = dz / dist;
+        // Keep saved speed magnitude — only update direction to tangential at new position.
+        // Changing distance with constant speed produces realistic elliptical/escape/crash orbits.
+        const speed = _s3DragSavedSpeed > 0 ? _s3DragSavedSpeed : Math.sqrt(G * sunObj.mass / dist);
+        draggedPlanet.vx = -uz * speed;
+        draggedPlanet.vz = ux * speed;
         draggedPlanet.stage2Modified = true;
         syncMeshPosition(draggedPlanet);
     }
     draggedPlanet = null; isPanning = false;
     s1PlacementBlocked = false;
+});
+
+// Cancel L1S2 aim on Escape
+window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && stage === 2 && s2PendingBall) s2CancelAim();
 });
 
 function getWorldXZ(cx, cy) {
@@ -569,7 +640,11 @@ function animate() {
     camPhi += (targetPhi - camPhi) * 0.1;
     camRadius += (targetRadius - camRadius) * 0.1;
     if (stage === 3) { updateGrid(); planets.forEach(syncMeshPosition); }
-    else { syncS1CentralMesh(); s1Balls.forEach(syncMeshPosition); }
+    else {
+        syncS1CentralMesh(); s1Balls.forEach(syncMeshPosition);
+        // Keep aim arrow locked to ball mesh position every frame
+        if (stage === 2 && s2Aiming && s2AimArrow) s2UpdateAimArrowVisual();
+    }
     if (sunObj) sunLight.position.set(sunObj.x, sunObj.mesh.position.y + 200, sunObj.z);
     else if (s1CentralObj) sunLight.position.set(0, s1CentralObj.mesh.position.y + 200, 0);
     updateCameraPosition();
