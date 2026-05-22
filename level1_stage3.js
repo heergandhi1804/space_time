@@ -181,12 +181,64 @@ function checkStage3Escapes() {
 
 let _s3FocusPlanet = null;
 
+// Updates the always-visible compact live row in the stage3 panel (mobile).
+function _updateS3LiveRow(p) {
+    const nameEl  = document.getElementById('s3lr-name');
+    if (!nameEl) return;
+    const badgeEl = document.getElementById('s3lr-badge');
+    const speedEl = document.getElementById('s3lr-speed');
+    const distEl  = document.getElementById('s3lr-dist');
+    const sep2    = document.getElementById('s3lr-sep2');
+    const sep3    = document.getElementById('s3lr-sep3');
+    const detBtn  = document.getElementById('s3lr-detail-btn');
+
+    if (!p || p === sunObj) {
+        nameEl.textContent = 'Tap a planet';
+        if (badgeEl) badgeEl.textContent = '';
+        if (speedEl) speedEl.textContent = '';
+        if (distEl)  distEl.textContent  = '';
+        if (sep2) sep2.style.display = 'none';
+        if (sep3) sep3.style.display = 'none';
+        if (detBtn) detBtn.style.display = 'none';
+        return;
+    }
+
+    nameEl.textContent = p.name;
+    const state = getS3OrbitalState(p);
+    const lrStateMap = {
+        'Orbiting':   { badge: '🟢 Orbit',    color: '#66ee88' },
+        'Falling In': { badge: '⚠️ Danger',   color: '#ff9944' },
+        'Escaping':   { badge: '🚀 Escaping',  color: '#ff7755' }
+    };
+    const lrSc = lrStateMap[state] || { badge: state, color: '#fff' };
+    if (badgeEl) { badgeEl.textContent = lrSc.badge; badgeEl.style.color = lrSc.color; }
+
+    const realData = SOLAR_REAL[p.name];
+    if (realData) {
+        if (sep2) sep2.style.display = '';
+        if (speedEl) speedEl.textContent = '⚡ ' + realData.speedKms.toFixed(1) + ' km/s';
+        const d = sunObj ? Math.hypot(p.x - sunObj.x, p.z - sunObj.z) : (p.initialR || 0);
+        const ratio = d / Math.max(p.initialR || d, 1);
+        if (distEl) {
+            distEl.textContent = '📍 ' + Math.round(realData.distKm * ratio).toLocaleString() + 'M km';
+            if (sep3) sep3.style.display = '';
+        }
+    } else {
+        if (sep2) sep2.style.display = 'none';
+        if (sep3) sep3.style.display = 'none';
+    }
+    if (detBtn) detBtn.style.display = '';
+}
+
 function updateS3InfoPanel(hoveredName) {
     if (hoveredName) {
         const found = planets.find(pl => pl.name === hoveredName);
         _s3FocusPlanet = found || null;
     }
     const p = _s3FocusPlanet;
+
+    // Always update the compact live row (visible on mobile even when popup is closed)
+    _updateS3LiveRow(p);
 
     const emptyEl  = document.getElementById('s3-popup-empty');
     const dataEl   = document.getElementById('s3-popup-data');

@@ -161,6 +161,35 @@
             #s3-edit-panel input[type=range] { width: 80px; }
             .zoom-controls { right: 10px; }
         }
+
+        /* ── Collapsible panel (mobile) ── */
+        .panel-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 6px; width: 100%; cursor: pointer; user-select: none;
+        }
+        .panel-collapse-btn {
+            display: none;
+            background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+            border-radius: 50%; color: #bbb;
+            width: 26px; height: 26px; min-height: 26px;
+            font-size: .6em; padding: 0; line-height: 1;
+            cursor: pointer; flex-shrink: 0;
+            align-items: center; justify-content: center;
+            transition: transform .22s, background .15s;
+        }
+        .panel-collapse-btn:hover { background: rgba(255,255,255,.22); color: #fff; }
+        .panel-body { display: flex; flex-direction: column; gap: 10px; }
+
+        @media (max-width: 768px) {
+            .panel-collapse-btn { display: flex; }
+            .panel-collapsed .panel-body { display: none !important; }
+            #s3-panel.panel-collapsed { gap: 0 !important; overflow: visible !important; }
+            .panel-collapsed .panel-collapse-btn { transform: rotate(-90deg); }
+        }
+
+        @media (min-width: 769px) {
+            .panel-collapsed .panel-body { display: flex !important; }
+        }
     </style>
 </head>
 
@@ -185,7 +214,11 @@
 
     <!-- ═══ STAGE 3 SIDEBAR ═══ -->
     <div id="s3-panel">
-        <div class="s3-title" style="font-size:.95em;color:#fff;text-align:center;letter-spacing:.04em;">🌌 Sandbox Universe</div>
+        <div class="panel-toggle" onclick="toggleMobilePanel('s3-panel')">
+            <div class="s3-title" style="font-size:.95em;color:#fff;text-align:center;letter-spacing:.04em;">🌌 Sandbox Universe</div>
+            <button class="panel-collapse-btn" aria-label="Toggle panel">▼</button>
+        </div>
+        <div class="panel-body">
 
         <!-- Step 1: Central mass -->
         <div id="s3-step1" class="s3-section" style="display:flex">
@@ -240,6 +273,8 @@
             <button class="s3-btn danger" onclick="resetStage3()">↺ Reset Universe</button>
 
         </div>
+
+        </div><!-- end panel-body -->
     </div>
 
     <!-- ═══ DIRECTION OVERLAY ═══ -->
@@ -289,6 +324,13 @@
 
     <div id="labels"></div>
 
+    <script>
+        function toggleMobilePanel(id) {
+            if (window.innerWidth > 768) return;
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('panel-collapsed');
+        }
+    </script>
     <script src="core.js"></script>
     <script src="level2_common.js"></script>
     <script src="level2_assets.js"></script>

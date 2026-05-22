@@ -351,6 +351,11 @@ function setStage(s) {
     const infoBtn = document.getElementById('s3-info-btn');
     if (infoBtn) infoBtn.style.display = s === 3 ? 'inline-block' : 'none';
     if (typeof closeS3Popup === 'function') closeS3Popup();
+    // Reset panel collapse state on stage change so new stage starts expanded
+    ['stage1-panel', 'stage2-panel', 'stage3-panel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('panel-collapsed');
+    });
     ['hint-s1','hint-s2','hint-s3'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
     const hintMap = { 1: 'hint-s1', 2: 'hint-s2', 3: 'hint-s3' };
     if (hintMap[s]) { const el = document.getElementById(hintMap[s]); if (el) el.style.display = 'inline-block'; }
@@ -374,6 +379,13 @@ function togglePlay() {
     isPlaying = !isPlaying;
     document.getElementById('btn-play').innerText = isPlaying ? '⏸ Pause' : '▶ Play';
     if (!isPlaying) speedFactor = 0;
+    // Auto-collapse the active panel on mobile when simulation starts playing
+    if (isPlaying && window.innerWidth <= 768) {
+        ['stage1-panel', 'stage2-panel', 'stage3-panel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.style.display !== 'none') el.classList.add('panel-collapsed');
+        });
+    }
 }
 
 function resetCamera() {
