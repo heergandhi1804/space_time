@@ -330,6 +330,12 @@
             const el = document.getElementById(id);
             if (el) el.classList.toggle('panel-collapsed');
         }
+        window.addEventListener('load', function() {
+            if (window.innerWidth <= 768) {
+                const panel = document.getElementById('s3-panel');
+                if (panel) panel.classList.add('panel-collapsed');
+            }
+        });
     </script>
     <script src="core.js"></script>
     <script src="level2_common.js"></script>

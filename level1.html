@@ -150,61 +150,6 @@
             pointer-events: none; z-index: 5;
         }
 
-        /* ── L1S3 Info Button ── */
-        #s3-info-btn {
-            position: fixed; bottom: 24px; right: 24px;
-            background: rgba(20, 50, 110, 0.88); border: 1px solid rgba(100,180,255,.5);
-            color: #aaddff; border-radius: 30px; padding: 11px 20px;
-            font-size: .9em; font-weight: 700; cursor: pointer;
-            z-index: 50; backdrop-filter: blur(8px); display: none;
-            transition: transform .2s, box-shadow .2s; min-height: 44px;
-        }
-        #s3-info-btn:hover { transform: scale(1.06); box-shadow: 0 0 18px rgba(100,180,255,.4); }
-
-        /* ── L1S3 Popup Backdrop ── */
-        #s3-backdrop {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,10,.30); backdrop-filter: blur(2px); z-index: 60;
-        }
-
-        /* ── L1S3 Popup (desktop: right card; mobile: bottom sheet) ── */
-        #s3-popup {
-            position: fixed; right: 80px; top: 50%;
-            transform: translateY(-50%) translateX(140%);
-            width: 290px; background: rgba(4, 10, 30, 0.96);
-            border: 1px solid rgba(100,180,255,.28); border-radius: 18px;
-            padding: 22px 20px 20px; z-index: 70; pointer-events: auto;
-            backdrop-filter: blur(18px);
-            transition: transform .35s cubic-bezier(.34,1.56,.64,1);
-            box-shadow: 0 8px 40px rgba(0,0,0,.65), 0 0 24px rgba(100,180,255,.08);
-        }
-        #s3-popup.s3-open { transform: translateY(-50%) translateX(0); }
-        .s3-drag-handle { display: none; }
-        .s3-popup-header {
-            display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
-        }
-        .s3-popup-label { font-size: .72em; color: #88ccff; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
-        .s3-close-btn {
-            width: 28px; height: 28px; border-radius: 50%;
-            background: rgba(255,255,255,.08); border: none;
-            color: #667788; font-size: 1em; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: background .15s, color .15s;
-        }
-        .s3-close-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
-        #s3-popup-empty {
-            text-align: center; padding: 16px 0 12px; color: #445566; font-size: .95em; line-height: 1.9;
-        }
-        .s3-empty-icon { font-size: 2.2em; margin-bottom: 6px; }
-        #s3-popup-name { font-size: 1.7em; font-weight: 800; color: #fff; margin-bottom: 4px; letter-spacing: .02em; }
-        #s3-popup-badge { display: inline-block; font-size: .92em; font-weight: 700; margin-bottom: 14px; }
-        .s3-data-rows { display: flex; flex-direction: column; gap: 8px; }
-        .s3-data-row {
-            font-size: .88em; color: #b0ccee; padding: 9px 12px;
-            background: rgba(100,180,255,.07); border-radius: 10px;
-            border-left: 3px solid rgba(100,180,255,.28); line-height: 1.4;
-        }
-
         .zoom-controls {
             position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
             display: flex; flex-direction: column; gap: 12px; z-index: 100;
@@ -214,39 +159,6 @@
             background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.2);
             font-size: 28px; display: flex; align-items: center; justify-content: center;
             cursor: pointer; backdrop-filter: blur(8px);
-        }
-
-        @media(max-width:768px) {
-            #landing-hub { padding: 30px 24px; }
-            #landing-hub h1 { font-size: 1.9em; }
-            #stage1-panel, #stage2-panel, #stage3-panel {
-                width: 90% !important; left: 5% !important; bottom: 20px !important;
-                top: auto !important; transform: none !important; max-height: 38vh;
-            }
-            .nav { flex-wrap: wrap; justify-content: center; }
-            .btn { padding: 12px 16px; min-height: 44px; }
-            #escaped-box { right: 5%; left: 5%; width: auto; top: 95px; }
-        }
-        /* Mobile: bottom sheet for popup */
-        @media(max-width: 600px) {
-            #s3-info-btn { display: none !important; }
-            #s3-popup {
-                right: 0; left: 0; bottom: 0; top: auto; width: 100%;
-                border-radius: 20px 20px 0 0;
-                transform: translateY(110%);
-                padding: 4px 20px 32px; max-height: 72vh; overflow-y: auto;
-                transition: transform .32s cubic-bezier(.25,.46,.45,.94);
-            }
-            #s3-popup.s3-open { transform: translateY(0); }
-            .s3-drag-handle {
-                display: block; width: 38px; height: 4px;
-                background: rgba(255,255,255,.18); border-radius: 2px;
-                margin: 10px auto 14px;
-            }
-        }
-        /* Landscape mobile */
-        @media(max-height: 500px) {
-            #s3-popup { max-height: 88vh; overflow-y: auto; }
         }
 
         /* ── Collapsible panel system ── */
@@ -267,44 +179,91 @@
         .panel-collapse-btn:hover { background: rgba(255,255,255,.22); color: #fff; }
         .panel-body { display: flex; flex-direction: column; gap: 10px; }
 
-        /* ── L1S3 Inline Live Data Row ── */
-        #s3-live-row {
-            display: none;
-            align-items: center; flex-wrap: wrap; gap: 4px 8px;
-            font-size: .76em; padding: 5px 0;
-            border-top: 1px solid rgba(100,180,255,.18);
-            min-height: 30px;
+        /* ── L1S3 Persistent Planet Info Card ──────────────────────── */
+        /* Desktop: bottom-right card, always visible when stage=3      */
+        #s3-planet-info {
+            position: fixed;
+            right: 20px; bottom: 20px;
+            width: 250px;
+            background: rgba(4, 10, 30, 0.94);
+            border: 1px solid rgba(100,180,255,.28);
+            border-radius: 18px;
+            padding: 18px 16px;
+            z-index: 24;
+            display: none; /* JS sets to block/flex when stage=3 */
+            backdrop-filter: blur(14px);
+            pointer-events: none;
+            box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 20px rgba(100,180,255,.06);
         }
-        .s3lr-name { font-weight: 700; color: #fff; }
-        .s3lr-badge { font-weight: 600; }
-        .s3lr-sep { color: rgba(255,255,255,.25); }
-        .s3lr-val { color: #99c4ee; }
-        .s3lr-btn {
-            background: rgba(100,180,255,.18); border: 1px solid rgba(100,180,255,.3);
-            border-radius: 8px; color: #aaddff; font-size: .72em; font-weight: 700;
-            padding: 4px 9px; cursor: pointer; min-height: 28px; white-space: nowrap;
-            margin-left: auto;
+        .s3pi-label {
+            font-size: .68em; text-transform: uppercase; letter-spacing: .09em;
+            font-weight: 700; color: #88ccff; margin-bottom: 12px;
+        }
+        #s3pi-empty { color: #445566; font-size: .88em; text-align: center; padding: 10px 0; }
+        .s3pi-name-row {
+            display: flex; align-items: baseline; flex-wrap: wrap;
+            gap: 6px; margin-bottom: 10px;
+        }
+        #s3pi-name { font-size: 1.5em; font-weight: 800; color: #fff; }
+        #s3pi-badge { font-size: .9em; font-weight: 700; }
+        .s3pi-stats { display: flex; flex-direction: column; gap: 6px; }
+        .s3pi-stat {
+            font-size: .84em; color: #b0ccee; padding: 7px 11px;
+            background: rgba(100,180,255,.07); border-radius: 9px;
+            border-left: 3px solid rgba(100,180,255,.28);
         }
 
+        /* Mobile: compact strip docked just above the collapsed panel */
         @media (max-width: 768px) {
+            #s3-planet-info {
+                right: 0; left: 0; width: 100%; bottom: 78px;
+                border-radius: 12px 12px 0 0;
+                padding: 10px 14px 12px;
+                border-left: none; border-right: none; border-bottom: none;
+                border-top: 1px solid rgba(100,180,255,.3);
+            }
+            .s3pi-label { display: none; }
+            .s3pi-name-row { margin-bottom: 6px; }
+            #s3pi-name { font-size: 1.05em; }
+            .s3pi-stats {
+                flex-direction: row; flex-wrap: wrap; gap: 4px;
+            }
+            .s3pi-stat {
+                font-size: .72em; padding: 4px 8px;
+                flex: 1; min-width: 0;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+        }
+
+        /* Mobile panel behavior */
+        @media (max-width: 768px) {
+            #landing-hub { padding: 30px 24px; }
+            #landing-hub h1 { font-size: 1.9em; }
+            #stage1-panel, #stage2-panel, #stage3-panel {
+                width: 90% !important; left: 5% !important; bottom: 20px !important;
+                top: auto !important; transform: none !important;
+                max-height: 35vh; overflow-y: auto;
+            }
+            .nav { flex-wrap: wrap; justify-content: center; }
+            .btn { padding: 12px 16px; min-height: 44px; }
+            #escaped-box { right: 5%; left: 5%; width: auto; top: 95px; }
+
+            /* Show collapse button on mobile */
             .panel-collapse-btn { display: flex; }
-            #s3-live-row { display: flex; }
-
-            /* Collapsed: hide the scrollable body */
+            /* Collapsed: hide the panel body */
             .panel-collapsed .panel-body { display: none !important; }
-
-            /* Tighten spacing when collapsed */
-            #stage1-panel.panel-collapsed,
-            #stage2-panel.panel-collapsed { gap: 0 !important; overflow: visible !important; }
-            #stage3-panel.panel-collapsed { gap: 4px !important; overflow: visible !important; }
-
-            /* Arrow rotates to indicate collapsed */
+            /* Collapsed panel: tight header only */
+            .panel-collapsed {
+                gap: 0 !important; overflow: visible !important;
+                padding: 8px 12px !important; max-height: unset !important;
+            }
+            /* Arrow indicates collapsed state */
             .panel-collapsed .panel-collapse-btn { transform: rotate(-90deg); }
         }
 
         @media (min-width: 769px) {
-            /* Desktop: live row hidden (use popup), body always shown */
-            #s3-live-row { display: none !important; }
+            /* Desktop: no collapse button, body always visible */
+            .panel-collapse-btn { display: none !important; }
             .panel-collapsed .panel-body { display: flex !important; }
         }
     </style>
@@ -425,17 +384,6 @@
             <div class="panel-title" style="font-size:1.1em;text-align:center;color:#fff;">🌍 Solar System</div>
             <button class="panel-collapse-btn" aria-label="Toggle panel">▼</button>
         </div>
-        <!-- Always-visible live data row: shows selected planet stats even when panel is collapsed -->
-        <div id="s3-live-row">
-            <span class="s3lr-name" id="s3lr-name">Tap a planet</span>
-            <span class="s3lr-sep">·</span>
-            <span class="s3lr-badge" id="s3lr-badge"></span>
-            <span class="s3lr-sep s3lr-sep-dyn" id="s3lr-sep2" style="display:none">·</span>
-            <span class="s3lr-val" id="s3lr-speed"></span>
-            <span class="s3lr-sep s3lr-sep-dyn" id="s3lr-sep3" style="display:none">·</span>
-            <span class="s3lr-val" id="s3lr-dist"></span>
-            <button class="s3lr-btn" id="s3lr-detail-btn" onclick="openS3Popup()" style="display:none">Details ▲</button>
-        </div>
         <div class="panel-body">
             <div style="font-size:.78em;color:#aaddff;margin-bottom:4px;">
                 All 8 planets in scaled orbits.<br>Tap a planet to see its data.
@@ -456,29 +404,19 @@
         </button>
     </div>
 
-    <!-- ═══ L1S3 INFO BUTTON ═══ -->
-    <button id="s3-info-btn" onclick="openS3Popup()">🔭 Planet Info</button>
-
-    <!-- ═══ L1S3 POPUP ═══ -->
-    <div id="s3-backdrop" onclick="closeS3Popup()"></div>
-    <div id="s3-popup">
-        <div class="s3-drag-handle"></div>
-        <div class="s3-popup-header">
-            <span class="s3-popup-label">Planet Details</span>
-            <button class="s3-close-btn" onclick="closeS3Popup()">✕</button>
-        </div>
-        <div id="s3-popup-empty">
-            <div class="s3-empty-icon">🌍</div>
-            <div>Tap any planet</div>
-            <div style="font-size:.82em;color:#334455;margin-top:2px">to explore its orbit</div>
-        </div>
-        <div id="s3-popup-data" style="display:none">
-            <div id="s3-popup-name"></div>
-            <div id="s3-popup-badge"></div>
-            <div class="s3-data-rows">
-                <div id="s3-popup-dist" class="s3-data-row"></div>
-                <div id="s3-popup-speed" class="s3-data-row"></div>
-                <div id="s3-popup-period" class="s3-data-row"></div>
+    <!-- ═══ L1S3 PERSISTENT PLANET INFO ═══ -->
+    <div id="s3-planet-info">
+        <div class="s3pi-label">Planet Data</div>
+        <div id="s3pi-empty">🌍 Tap a planet</div>
+        <div id="s3pi-content" style="display:none">
+            <div class="s3pi-name-row">
+                <span id="s3pi-name"></span>
+                <span id="s3pi-badge"></span>
+            </div>
+            <div class="s3pi-stats">
+                <div id="s3pi-speed" class="s3pi-stat"></div>
+                <div id="s3pi-dist" class="s3pi-stat"></div>
+                <div id="s3pi-period" class="s3pi-stat"></div>
             </div>
         </div>
     </div>
@@ -529,20 +467,8 @@
             });
         }
 
-        function openS3Popup() {
-            const popup    = document.getElementById('s3-popup');
-            const backdrop = document.getElementById('s3-backdrop');
-            if (popup)    popup.classList.add('s3-open');
-            if (backdrop) backdrop.style.display = 'block';
-            if (typeof updateS3InfoPanel === 'function') updateS3InfoPanel(null);
-        }
-
-        function closeS3Popup() {
-            const popup    = document.getElementById('s3-popup');
-            const backdrop = document.getElementById('s3-backdrop');
-            if (popup)    popup.classList.remove('s3-open');
-            if (backdrop) backdrop.style.display = 'none';
-        }
+        function openS3Popup() {}
+        function closeS3Popup() {}
     </script>
 </body>
 

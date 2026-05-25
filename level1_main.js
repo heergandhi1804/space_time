@@ -348,13 +348,16 @@ function setStage(s) {
     document.getElementById('stage2-panel').style.display = s === 2 ? 'flex' : 'none';
     document.getElementById('stage3-panel').style.display = s === 3 ? 'flex' : 'none';
     document.getElementById('btn-play').style.display = s === 0 ? 'none' : 'inline-block';
-    const infoBtn = document.getElementById('s3-info-btn');
-    if (infoBtn) infoBtn.style.display = s === 3 ? 'inline-block' : 'none';
     if (typeof closeS3Popup === 'function') closeS3Popup();
-    // Reset panel collapse state on stage change so new stage starts expanded
+    const infoCard = document.getElementById('s3-planet-info');
+    if (infoCard) infoCard.style.display = s === 3 ? 'block' : 'none';
+    // On mobile: start collapsed so the panel doesn't cover the simulation.
+    // On desktop: always expanded.
     ['stage1-panel', 'stage2-panel', 'stage3-panel'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.classList.remove('panel-collapsed');
+        if (!el) return;
+        if (window.innerWidth <= 768) el.classList.add('panel-collapsed');
+        else el.classList.remove('panel-collapsed');
     });
     ['hint-s1','hint-s2','hint-s3'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
     const hintMap = { 1: 'hint-s1', 2: 'hint-s2', 3: 'hint-s3' };
