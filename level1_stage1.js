@@ -28,7 +28,6 @@ function createS1CentralObject(m) {
 }
 
 function placeStage1Ball(wx, wz) {
-    if (stage === 1) wz = 0;
     if (Math.abs(wx) > S1_PLACE_LIMIT || Math.abs(wz) > S1_PLACE_LIMIT) {
         return showToast('Tap on the blanket!');
     }
@@ -78,7 +77,9 @@ function placeStage1Ball(wx, wz) {
         s2RemoveProjectedPath();
         // === OPTIONAL PROJECTED PATH END ===
         s2PendingBall = ball;
-        // Ball awaits: user must tap the ball to start in-scene aiming
+        // Auto-enter aiming immediately — arrow appears right after placement
+        s2StartAim(0, 0);
+        showFloatingMessage('Aim the ball', '#99ddff');
     }
 }
 
@@ -133,11 +134,13 @@ const S2_ARROW_HEAD   = 48;
 const S2_ARROW_WIDTH  = 22;
 const S2_ARROW_COLOR  = 0x99ddff;
 
-// Called when user clicks/touches the placed ball — activates aiming mode
+// Activates aiming mode — called automatically after placement or on tap
 function s2StartAim(clientX, clientY) {
     if (!s2PendingBall) return;
     s2Aiming = true;
     s2AimPointerMoved = false;
+    // Highlight the pending ball so it's clearly selected
+    if (s2PendingBall.glow && s2PendingBall.glow.material) s2PendingBall.glow.material.opacity = 1.0;
 
     // Default direction: tangential CCW (classic orbit direction)
     const bx = s2PendingBall.x, bz = s2PendingBall.z;
@@ -220,6 +223,7 @@ function s2UpdateAimFromPointer(clientX, clientY) {
 function s2LaunchFromAim() {
     const ball = s2PendingBall;
     if (!ball || !s1CentralObj) { s2CancelAim(); return; }
+    if (ball.glow && ball.glow.material) ball.glow.material.opacity = 0.65; // reset highlight
 
     // ── Velocity magnitude: circular orbit speed (same formula as before) ──
     const r           = Math.hypot(ball.x, ball.z);
@@ -240,6 +244,7 @@ function s2LaunchFromAim() {
 // Cancel aiming: remove the unlaunched ball and clean up all aim visuals
 function s2CancelAim() {
     if (s2PendingBall) {
+        if (s2PendingBall.glow && s2PendingBall.glow.material) s2PendingBall.glow.material.opacity = 0.65;
         scene.remove(s2PendingBall.mesh);
         scene.remove(s2PendingBall.glow);
         s1Balls = s1Balls.filter(b => b !== s2PendingBall);
@@ -255,8 +260,7 @@ function s2CancelAim() {
     // === OPTIONAL PROJECTED PATH END ===
 }
 
-// ── Legacy aliases used by setStage / resetStage1Lab across files ─────────
-function showS2Wheel(ball) { /* replaced by in-scene aiming — no panel to show */ }
+// ── Aliases used by setStage / resetStage1Lab ────────────────────────────
 function hideS2Wheel() {
     s2Aiming = false; s2AimPointerMoved = false;
     s2RemoveAimArrow();
@@ -265,9 +269,6 @@ function hideS2Wheel() {
     // === OPTIONAL PROJECTED PATH END ===
 }
 function hideS2DirectionOverlay() { hideS2Wheel(); }
-function s2WheelLaunch()           { s2LaunchFromAim(); }
-function s2CancelPlacement()       { s2CancelAim(); }
-function s2WheelUpdateAngle(cx,cy) { if (s2Aiming) s2UpdateAimFromPointer(cx, cy); }
 
 // === OPTIONAL PROJECTED PATH START ===
 // Faint dashed guide line showing the straight-line launch direction from the ball.

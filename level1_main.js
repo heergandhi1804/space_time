@@ -312,6 +312,12 @@ function checkPlanetCrashes() {
                 if (typeof closeS3Popup === 'function') closeS3Popup();
             }
             removePlanetFromScene(p); planets.splice(i, 1);
+            if (stage === 3) {
+                updateGrid(); // force immediate grid refresh — no ghost crater
+                p.status = 'fell';
+                lostPlanets.push(p);
+                updateLostList();
+            }
         }
     }
 }
@@ -403,8 +409,10 @@ function updateLostList() {
     const list = document.getElementById('lost-list'); if (!list) return;
     list.innerHTML = '';
     lostPlanets.forEach((p, i) => {
+        const icon   = p.status === 'fell' ? '☄' : '🚀';
+        const label  = p.status === 'fell' ? 'Fell In' : 'Escaped';
         const div = document.createElement('div'); div.className = 'escaped-item';
-        div.innerHTML = `<span>${p.name}</span><button onclick="restorePlanet(${i})">Restore</button>`;
+        div.innerHTML = `<span>${icon} ${p.name} <small style="opacity:.65;font-size:.85em">— ${label}</small></span><button onclick="restorePlanet(${i})">Restore</button>`;
         list.appendChild(div);
     });
     document.getElementById('escaped-box').style.visibility = lostPlanets.length > 0 ? 'visible' : 'hidden';

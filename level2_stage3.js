@@ -1,4 +1,4 @@
-// level2_stage3.js — Stage 3: Sandbox Universe
+// level2_stage3.js — Stage 3: Gravity Lab
 
 let s3PlacingMode = false;
 let s3PendingPlanet = null; // awaiting direction choice

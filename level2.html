@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Space-Time Sandbox</title>
+    <title>Space-Time Gravity Lab</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         html, body {
@@ -183,7 +183,10 @@
         @media (max-width: 768px) {
             .panel-collapse-btn { display: flex; }
             .panel-collapsed .panel-body { display: none !important; }
-            #s3-panel.panel-collapsed { gap: 0 !important; overflow: visible !important; }
+            #s3-panel.panel-collapsed {
+                gap: 0 !important; overflow: visible !important;
+                padding: 8px 12px !important; max-height: unset !important;
+            }
             .panel-collapsed .panel-collapse-btn { transform: rotate(-90deg); }
         }
 
@@ -215,7 +218,7 @@
     <!-- ═══ STAGE 3 SIDEBAR ═══ -->
     <div id="s3-panel">
         <div class="panel-toggle" onclick="toggleMobilePanel('s3-panel')">
-            <div class="s3-title" style="font-size:.95em;color:#fff;text-align:center;letter-spacing:.04em;">🌌 Sandbox Universe</div>
+            <div class="s3-title" style="font-size:.95em;color:#fff;text-align:center;letter-spacing:.04em;">🌌 Gravity Lab</div>
             <button class="panel-collapse-btn" aria-label="Toggle panel">▼</button>
         </div>
         <div class="panel-body">

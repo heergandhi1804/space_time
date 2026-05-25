@@ -171,6 +171,7 @@ function checkStage3Escapes() {
             updateS3InfoPanel(null);
             if (typeof closeS3Popup === 'function') closeS3Popup();
         }
+        p.status = 'escaped';
         planets.splice(i, 1);
         lostPlanets.push(p);
         updateLostList();
