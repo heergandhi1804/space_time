@@ -22,7 +22,10 @@ function createPlanetMaterial(name, fallbackColorHex) {
     const fallbackNum = typeof fallbackColorHex === 'number' ? fallbackColorHex : parseInt(String(fallbackColorHex || '0xaaaaaa').replace('#', ''), 16);
     const safeColor = isNaN(fallbackNum) ? 0xaaaaaa : fallbackNum;
 
-    if (name === 'Sun') return new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : safeColor });
+    if (name === 'Sun') {
+        const isDefaultSun = (safeColor === 0xFFD700);
+        return new THREE.MeshBasicMaterial({ map: tex, color: isDefaultSun ? 0xffffff : safeColor });
+    }
     return new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : safeColor, roughness: 0.85, metalness: 0.05, emissive: new THREE.Color(safeColor), emissiveIntensity: tex ? 0.06 : 0.12 });
 }
 
@@ -61,7 +64,20 @@ function makeSelectionRing(r) {
 }
 
 function makeGlowSprite(name, colorHex, r) {
-    const gp = getGlowParams(name), useColor = GLOW_PARAMS[name] ? gp.color : (colorHex || gp.color);
+    const gp = getGlowParams(name);
+    let useColor = gp.color;
+    if (colorHex) {
+        const defaultColor = name === 'Sun' ? '#FFD700' : (GLOW_PARAMS[name] ? GLOW_PARAMS[name].color : null);
+        if (defaultColor) {
+            const defaultNum = parseInt(defaultColor.replace('#', ''), 16);
+            const customNum = typeof colorHex === 'number' ? colorHex : parseInt(String(colorHex).replace('#', ''), 16);
+            if (customNum !== defaultNum) {
+                useColor = colorHex;
+            }
+        } else {
+            useColor = colorHex;
+        }
+    }
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
     const ctx = canvas.getContext('2d'), c = threeColor(useColor), grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
     const innerAlpha = name === 'Sun' ? 0.7 : (name === 'Jupiter' || name === 'Saturn') ? 0.4 : 0.3;
@@ -102,12 +118,12 @@ function addPlanet(x, z, m, colorHex, name, shape, r, isOriginal = false) {
     planets.push(p); return p;
 }
 
-function makeSun(mass) {
-    const mesh = makePlanetMesh('Sun', mass, 0xFFD700), selRing = makeSelectionRing(mass * 0.45), glow = makeGlowSprite('Sun', '#FFD700', mass * 0.45);
+function makeSun(mass, colorHex = '#FFD700') {
+    const mesh = makePlanetMesh('Sun', mass, colorHex), selRing = makeSelectionRing(mass * 0.45), glow = makeGlowSprite('Sun', colorHex, mass * 0.45);
     scene.add(mesh); scene.add(glow); mesh.add(selRing);
     if (!labelEls['SUN']) { const el = document.createElement('div'); el.className = 'planet-label'; el.innerText = 'SUN'; document.getElementById('labels').appendChild(el); labelEls['SUN'] = el; }
     labelEls['SUN'].style.display = 'block';
-    const s = { x: 0, z: 0, mass: mass, color: '#FFD700', name: 'SUN', shape: 'circle', dist: 0, vx: 0, vz: 0, primary: null, isDynamic: false, mesh, selRing, glow, extras: null, _orbitDirty: false };
+    const s = { x: 0, z: 0, mass: mass, color: colorHex, name: 'SUN', shape: 'circle', dist: 0, vx: 0, vz: 0, primary: null, isDynamic: false, mesh, selRing, glow, extras: null, _orbitDirty: false };
     mesh.userData.planet = s; return s;
 }
 
@@ -231,9 +247,27 @@ function hitTestPlanet(mx, my) {
     const hits = raycaster.intersectObjects(planets.map(p => p.mesh)); return hits.length ? hits[0].object.userData.planet : null;
 }
 
+let s3PlacementBlocked = false;
+
 window.addEventListener('pointerdown', e => {
     if (e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #s3-panel, #s3-edit-panel, #s3-dir-overlay')) return;
     pointerDownX2 = e.clientX; pointerDownY2 = e.clientY;
+
+    // Stage 3 aiming intercept
+    if (stage === 3 && s3PendingPlanet) {
+        if (!s3Aiming) {
+            const hit = hitTestPlanet(e.clientX, e.clientY);
+            if (hit === s3PendingPlanet) {
+                s3AimPointerMoved = false;
+                s3StartAim(e.clientX, e.clientY);
+            }
+        } else {
+            s3LaunchFromAim();
+            s3PlacementBlocked = true; // prevent placement on pointerup
+        }
+        return;
+    }
+
     const hit = hitTestPlanet(e.clientX, e.clientY);
     if (hit) {
         if (s3PlacingMode) return; // in placing mode, ignore planet hits
@@ -247,6 +281,13 @@ window.addEventListener('pointerdown', e => {
 });
 const panStart = { x: 0, y: 0 };
 window.addEventListener('pointermove', e => {
+    if (stage === 3 && s3PendingPlanet) {
+        if (s3Aiming) {
+            s3AimPointerMoved = true;
+            s3UpdateAimFromPointer(e.clientX, e.clientY);
+        }
+        return;
+    }
     if (draggedPlanet) {
         const wm = getWorldXZ(e.clientX, e.clientY); draggedPlanet.x = wm.x; draggedPlanet.z = wm.z;
         if (draggedPlanet.primary) { draggedPlanet.dist = Math.hypot(draggedPlanet.x - draggedPlanet.primary.x, draggedPlanet.z - draggedPlanet.primary.z); draggedPlanet.angle = Math.atan2(draggedPlanet.z - draggedPlanet.primary.z, draggedPlanet.x - draggedPlanet.primary.x); }
@@ -257,12 +298,22 @@ window.addEventListener('pointermove', e => {
 });
 let pointerDownX2 = 0, pointerDownY2 = 0;
 window.addEventListener('pointerup', e => {
+    if (stage === 3 && s3Aiming) {
+        if (s3AimPointerMoved) {
+            s3LaunchFromAim();
+        }
+        draggedPlanet = null; isPanning = false; s3PlacementBlocked = false;
+        return;
+    }
     // Click-to-place in Stage 3 placing mode
-    if (stage === 3 && s3PlacingMode && Math.hypot(e.clientX - pointerDownX2, e.clientY - pointerDownY2) < 8) {
+    if (stage === 3 && s3PlacingMode && !s3PlacementBlocked && !s3PendingPlanet && Math.hypot(e.clientX - pointerDownX2, e.clientY - pointerDownY2) < 8) {
         const wm = getWorldXZ(e.clientX, e.clientY);
         s3PlacePlanet(wm.x, wm.z);
     }
-    draggedPlanet = null; isPanning = false;
+    draggedPlanet = null; isPanning = false; s3PlacementBlocked = false;
+});
+window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && stage === 3 && s3PendingPlanet) s3CancelAim();
 });
 window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); });
 
@@ -302,6 +353,10 @@ function animate() {
     if (isPlaying) { speedFactor = Math.min(3, speedFactor + dt * 2); updatePhysics(dt); }
     updateGrid(); planets.forEach(p => { syncMeshPosition(p); updateOrbitRing(p); });
     if (sunObj) sunLight.position.set(sunObj.x, sunObj.mesh.position.y + 200, sunObj.z);
+    
+    // Sync s3AimArrow helper position every frame
+    if (stage === 3 && s3Aiming && s3AimArrow) s3UpdateAimArrowVisual();
+    
     camTheta += (targetTheta - camTheta) * 0.1; camPhi += (targetPhi - camPhi) * 0.1; camRadius += (targetRadius - camRadius) * 0.1; updateCameraPosition();
     renderer.render(scene, camera); updateLabels(); tickFX();
 }

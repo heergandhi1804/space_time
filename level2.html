@@ -228,9 +228,9 @@
             <div class="s3-title">Step 1 · Central Object</div>
             <div class="s3-row">
                 <label>Mass</label>
-                <input type="range" id="s3-sun-mass" min="60" max="600" step="10" value="200"
+                <input type="range" id="s3-sun-mass" min="60" max="600" step="10" value="320"
                     oninput="document.getElementById('s3-sm-val').textContent=this.value">
-                <span class="val" id="s3-sm-val">200</span>
+                <span class="val" id="s3-sm-val">320</span>
             </div>
             <div class="s3-row">
                 <label>Color</label>
@@ -247,7 +247,7 @@
 
             <div class="s3-row">
                 <label>Mass</label>
-                <input type="range" id="s3-p-mass" min="20" max="200" step="5" value="55"
+                <input type="range" id="s3-p-mass" min="35" max="110" step="5" value="55"
                     oninput="document.getElementById('s3-pm-val').textContent=this.value">
                 <span class="val" id="s3-pm-val">55</span>
             </div>
@@ -268,7 +268,7 @@
                 <input type="text" id="s3-p-name" placeholder="optional"
                     style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:4px 8px;font-size:.82em;min-width:0;">
             </div>
-            <p class="note-text">Tap the grid to place a planet, then choose its direction.</p>
+            <p class="note-text">Tap the grid to place a planet, then drag to aim and launch.</p>
             <p class="note-text" style="color:#5577aa;">Only the central object pulls on planets — planets don't attract each other.</p>
 
             <hr class="s3-divider">
@@ -299,8 +299,12 @@
     <div id="s3-edit-panel">
         <span class="ep-title">Edit Planet</span>
         <label>
+            Name
+            <input type="text" id="s3-edit-name" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:4px 8px;font-size:.82em;width:90px;min-height:30px;" oninput="s3UpdateSelected();">
+        </label>
+        <label>
             Mass
-            <input type="range" id="s3-edit-mass" min="20" max="200" step="5" value="55"
+            <input type="range" id="s3-edit-mass" min="35" max="110" step="5" value="55"
                 oninput="document.getElementById('s3-em-val').textContent=this.value; s3UpdateSelected();">
         </label>
         <span class="val" id="s3-em-val" style="align-self:flex-end;margin-bottom:2px;">55</span>
