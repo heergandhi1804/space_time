@@ -163,7 +163,17 @@ function getWorldXZ(cx, cy) {
     mouse2d.set((cx / window.innerWidth) * 2 - 1, -(cy / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(mouse2d, camera);
     raycaster.ray.intersectPlane(dragPlane, dragPoint);
-    return { x: dragPoint.x, z: dragPoint.z };
+    let x = dragPoint.x, z = dragPoint.z;
+    // Refine against actual warp surface so click lands where it visually appears
+    if (typeof warpDepth === 'function') {
+        const refPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const pt = new THREE.Vector3();
+        for (let i = 0; i < 2; i++) {
+            refPlane.constant = -warpDepth(x, z);
+            if (raycaster.ray.intersectPlane(refPlane, pt)) { x = pt.x; z = pt.z; }
+        }
+    }
+    return { x, z };
 }
 
 function getWorldDragPoint(mx, my) {

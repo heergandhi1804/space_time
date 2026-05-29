@@ -95,23 +95,28 @@
         #ep-delete-btn { background: rgba(255,80,80,.35); color: #fff; border: 1px solid rgba(255,80,80,.5); }
         #ep-close-btn  { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.2); }
 
-        /* ── Direction overlay ── */
-        #s3-dir-overlay {
-            position: absolute; display: none; flex-direction: column; gap: 8px;
-            background: rgba(0,5,20,.88); border: 1px solid rgba(80,200,255,.5);
-            border-radius: 14px; padding: 12px 14px;
-            z-index: 50; pointer-events: auto; min-width: 190px;
+        /* ── Inline naming prompt ── */
+        #s3-naming-prompt {
+            position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+            background: rgba(4,8,28,.93); border: 1px solid rgba(100,200,255,.55);
+            border-radius: 14px; padding: 14px 18px;
+            display: none; flex-direction: column; align-items: center; gap: 8px;
+            pointer-events: auto; z-index: 60; backdrop-filter: blur(10px);
+            min-width: 240px; max-width: 92vw;
         }
-        .dir-title { font-size: .8em; color: #88ddff; text-align: center; font-weight: 700; margin-bottom: 2px; }
-        #s3-dir-overlay button {
-            padding: 10px 10px; border: 1px solid rgba(255,255,255,.25);
-            border-radius: 9px; background: rgba(255,255,255,.1);
-            color: #fff; font-size: .86em; font-weight: 700;
-            cursor: pointer; text-align: left; min-height: 42px;
+        #s3-naming-prompt .np-title { color: #aaddff; font-size: .88em; font-weight: 700; text-align: center; }
+        #s3-naming-prompt input[type=text] {
+            background: rgba(255,255,255,.1); border: 1px solid rgba(100,200,255,.45);
+            border-radius: 8px; color: #fff; padding: 8px 12px;
+            font-size: .95em; width: 100%; min-height: 38px; outline: none;
         }
-        #s3-dir-overlay button:hover { background: rgba(80,200,255,.22); }
-        .dir-sub { font-size: .74em; opacity: .65; display: block; margin-top: 1px; }
-        #s3-dir-overlay .dir-cancel { background: rgba(255,80,80,.18); border-color: rgba(255,80,80,.35); font-size: .78em; min-height: 34px; }
+        #s3-naming-prompt input[type=text]:focus { border-color: rgba(100,200,255,.9); }
+        #s3-naming-error { color: #ff8888; font-size: .76em; display: none; text-align: center; }
+        #s3-naming-prompt .np-btn {
+            border: none; border-radius: 9px; padding: 9px 18px; font-weight: 700;
+            cursor: pointer; min-height: 38px; font-size: .86em;
+            background: linear-gradient(135deg, #2255cc, #3399ff); color: #fff; width: 100%;
+        }
 
         /* ── Escaped planets ── */
         #escaped-box {
@@ -125,6 +130,11 @@
             background: #1a0808; margin: 5px 0; padding: 8px;
             border-radius: 7px; font-size: 12px;
             display: flex; align-items: center; justify-content: space-between; gap: 6px;
+        }
+        .escaped-item button {
+            background: rgba(100,180,255,.2); border: 1px solid rgba(100,180,255,.4);
+            border-radius: 6px; color: #cce8ff; padding: 4px 8px;
+            font-size: 11px; cursor: pointer; white-space: nowrap; min-height: 26px;
         }
 
         .planet-label {
@@ -263,12 +273,7 @@
                     style="width:36px;height:28px;border:none;border-radius:5px;">
             </div>
 
-            <div class="s3-row">
-                <label>Name</label>
-                <input type="text" id="s3-p-name" placeholder="optional"
-                    style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:4px 8px;font-size:.82em;min-width:0;">
-            </div>
-            <p class="note-text">Tap the grid to place a planet, then drag to aim and launch.</p>
+            <p class="note-text">Tap the blanket to place a planet. You'll name it, then drag to aim and launch.</p>
             <p class="note-text" style="color:#5577aa;">Only the central object pulls on planets — planets don't attract each other.</p>
 
             <hr class="s3-divider">
@@ -280,19 +285,13 @@
         </div><!-- end panel-body -->
     </div>
 
-    <!-- ═══ DIRECTION OVERLAY ═══ -->
-    <div id="s3-dir-overlay">
-        <div class="dir-title">Which way should it go?</div>
-        <button onclick="s3ChooseDirection('go_around')">
-            ↺ Go around<span class="dir-sub">Tries to move around the center</span>
-        </button>
-        <button onclick="s3ChooseDirection('curve_in')">
-            ↗ Curve inward<span class="dir-sub">Starts moving toward the center</span>
-        </button>
-        <button onclick="s3ChooseDirection('zoom_out')">
-            🚀 Zoom outward<span class="dir-sub">Starts moving away fast</span>
-        </button>
-        <button class="dir-cancel" onclick="s3CancelPlacement()">✕ Cancel</button>
+    <!-- ═══ NAMING PROMPT ═══ -->
+    <div id="s3-naming-prompt">
+        <div class="np-title">Name your planet</div>
+        <input type="text" id="s3-naming-input" placeholder="Enter a name…" autocomplete="off"
+            onkeydown="if(event.key==='Enter')s3ConfirmName()">
+        <div id="s3-naming-error"></div>
+        <button class="np-btn" onclick="s3ConfirmName()">Confirm Name</button>
     </div>
 
     <!-- ═══ SELECTED PLANET EDIT ═══ -->
@@ -319,13 +318,13 @@
         <button id="ep-close-btn" onclick="s3HideEditPanel()">✕ Close</button>
     </div>
 
-    <!-- ═══ ESCAPED PLANETS ═══ -->
+    <!-- ═══ LOST PLANETS ═══ -->
     <div id="escaped-box">
-        <div style="font-weight:bold;color:#ff8888;margin-bottom:5px;">🚀 Lost Planets</div>
+        <div style="font-weight:bold;color:#ff8888;margin-bottom:5px;">Lost Planets</div>
         <div id="lost-list"></div>
         <button onclick="restoreSystem()"
             style="background:#cc3333;border:none;border-radius:6px;padding:8px;color:white;width:100%;font-weight:bold;margin-top:6px;min-height:38px;">
-            ↩ Restore All
+            ↩ Reset Universe
         </button>
     </div>
 
