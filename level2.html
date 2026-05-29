@@ -262,19 +262,10 @@
                 <span class="val" id="s3-pm-val">55</span>
             </div>
             <div class="s3-row">
-                <label>Size</label>
-                <input type="range" id="s3-p-size" min="0.5" max="2.0" step="0.1" value="1.0"
-                    oninput="document.getElementById('s3-ps-val').textContent=parseFloat(this.value).toFixed(1)+'×'">
-                <span class="val" id="s3-ps-val">1.0×</span>
-            </div>
-            <div class="s3-row">
                 <label>Color</label>
                 <input type="color" id="s3-p-color" value="#6ce0ff"
                     style="width:36px;height:28px;border:none;border-radius:5px;">
             </div>
-
-            <p class="note-text">Tap the blanket to place a planet. You'll name it, then drag to aim and launch.</p>
-            <p class="note-text" style="color:#5577aa;">Only the central object pulls on planets — planets don't attract each other.</p>
 
             <hr class="s3-divider">
             <button class="s3-btn action" onclick="_showS3Step(1)">← Change Central Object</button>

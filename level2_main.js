@@ -332,7 +332,7 @@ let s3PlacementBlocked = false;
 let pointerDownX2 = 0, pointerDownY2 = 0;
 
 window.addEventListener('pointerdown', e => {
-    if (e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #s3-panel, #s3-edit-panel, #s3-naming-prompt')) return;
+    if (e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #s3-panel, #s3-edit-panel, #s3-naming-prompt, .zoom-controls')) return;
     pointerDownX2 = e.clientX; pointerDownY2 = e.clientY;
 
     // Block all interaction during naming
@@ -387,7 +387,7 @@ window.addEventListener('pointerup', e => {
     }
     // Click-to-place in Stage 3 placing mode
     if (stage === 3 && s3PlacingMode && !s3PlacementBlocked && !s3PendingPlanet && !s3PendingNaming && Math.hypot(e.clientX - pointerDownX2, e.clientY - pointerDownY2) < 10) {
-        if (!e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #s3-panel, #s3-edit-panel, #s3-naming-prompt')) {
+        if (!e.target.closest('.ui-panel, #ui-header, #landing-hub, #escaped-box, #cockpit, #s3-panel, #s3-edit-panel, #s3-naming-prompt, .zoom-controls')) {
             const wm = getWorldXZ(e.clientX, e.clientY);
             s3PlacePlanet(wm.x, wm.z);
         }

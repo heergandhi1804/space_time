@@ -88,11 +88,9 @@ function s3PlacePlanet(wx, wz) {
 
     const mEl = document.getElementById('s3-p-mass');
     const cEl = document.getElementById('s3-p-color');
-    const sEl = document.getElementById('s3-p-size');
     const mass = mEl ? Math.max(35, Math.min(110, parseInt(mEl.value))) : 55;
     const colorHex = cEl ? cEl.value : '#6ce0ff';
-    const sizeScale = sEl ? parseFloat(sEl.value) : 1.0;
-    const visualMass = mass * sizeScale;
+    const visualMass = mass;
 
     // Push away from sun if too close
     const dx = wx - sunObj.x, dz = wz - sunObj.z;
