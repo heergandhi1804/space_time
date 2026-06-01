@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:\\\\Users\\\\heerg\\\\Downloads\\\\beyond box\\\\space-time\" diff --name-only HEAD)",
+      "Bash(git -C \"c:\\\\Users\\\\heerg\\\\Downloads\\\\beyond box\\\\space-time\" status --short)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

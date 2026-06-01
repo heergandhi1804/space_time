@@ -28,7 +28,7 @@ function createPlanetMaterial(name, fallbackColorHex) {
         return new THREE.MeshBasicMaterial({ color: safeColor });
     }
     const tex = createProceduralPlanetTexture(name, fallbackColorHex);
-    return new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : safeColor, roughness: 0.85, metalness: 0.05, emissive: new THREE.Color(safeColor), emissiveIntensity: tex ? 0.06 : 0.12 });
+    return new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : safeColor, roughness: 0.55, metalness: 0.12, emissive: new THREE.Color(safeColor), emissiveIntensity: tex ? 0.08 : 0.18 });
 }
 
 function drawSaturnRingTexture() {
@@ -78,13 +78,25 @@ function makeGlowSprite(name, colorHex, r) {
             useColor = colorHex;
         }
     }
-    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
-    const ctx = canvas.getContext('2d'), c = threeColor(useColor), grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    const innerAlpha = name === 'Sun' ? 0.7 : (name === 'Jupiter' || name === 'Saturn') ? 0.4 : 0.3;
-    grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},${innerAlpha})`);
-    grad.addColorStop(0.5, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.08)`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d'), c = threeColor(useColor);
+    
+    if (name === 'Sun') {
+        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)'); // White-hot core
+        grad.addColorStop(0.12, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.85)`);
+        grad.addColorStop(0.35, `rgba(${~~(c.r * 255)},${~~(c.g * 255 * 0.7)},${~~(c.b * 255 * 0.3)},0.25)`); // Corona
+        grad.addColorStop(0.75, `rgba(${~~(c.r * 255)},${~~(c.g * 255 * 0.5)},${~~(c.b * 255 * 0.15)},0.06)`); // Wide bloom
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
+    } else {
+        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        const innerAlpha = (name === 'Jupiter' || name === 'Saturn') ? 0.45 : 0.35;
+        grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},${innerAlpha})`);
+        grad.addColorStop(0.4, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.09)`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
+    }
     const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthWrite: false, depthTest: false });
     const sprite = new THREE.Sprite(mat); sprite.scale.set(r * gp.sizeMultiplier, r * gp.sizeMultiplier, 1); sprite.renderOrder = 1; return sprite;
 }
@@ -137,16 +149,9 @@ function removePlanetFromScene(p, disposeOrbit = true) {
 
 function syncMeshPosition(p) {
     const radius = p.mass * 0.45;
-    let yBase, yOffset;
-    if (p === sunObj) {
-        yBase = warpDepth(p.x, p.z, p); // warp from other objects only
-        yOffset = -144;
-    } else {
-        // Exclude self so the planet sits ON the blanket, not inside its own well
-        yBase = warpDepth(p.x, p.z, p);
-        yOffset = 2;
-    }
-    const y = yBase + radius + yOffset;
+    // Exclude self so the planet sits ON the grid, not inside its own well
+    const yBase = warpDepth(p.x, p.z, p);
+    const y = yBase + radius; // Exactly touching the grid surface
     p.mesh.position.set(p.x, y, p.z);
     p.glow.position.set(p.x, y, p.z);
     if (p.extras && p.extras.ring) { p.extras.ring.position.copy(p.mesh.position); const s = (p.mass * 0.45) / p._extrasBaseRadius; p.extras.ring.scale.set(s, s, s); }
@@ -414,7 +419,13 @@ scene.add(new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ vertexCo
 
 function updateGrid() {
     const pos = gridGeo.attributes.position, col = gridGeo.attributes.color;
-    for (let i = 0; i < VCOUNT; i++) { const wx = gridXZ[i * 2], wz = gridXZ[i * 2 + 1], wy = warpDepth(wx, wz); pos.setXYZ(i, wx, wy, wz); const d = Math.min(1, Math.abs(wy) / 300); col.setXYZ(i, 0.35 + d * 0.3, 0.5 + d * 0.4, 0.9 + d * 0.1); }
+    for (let i = 0; i < VCOUNT; i++) {
+        const wx = gridXZ[i * 2], wz = gridXZ[i * 2 + 1], wy = warpDepth(wx, wz);
+        const disp = typeof getDisplacedXZ === 'function' ? getDisplacedXZ(wx, wz) : { x: wx, z: wz };
+        pos.setXYZ(i, disp.x, wy, disp.z);
+        const d = Math.min(1, Math.abs(wy) / 300);
+        col.setXYZ(i, 0.35 + d * 0.3, 0.5 + d * 0.4, 0.9 + d * 0.1);
+    }
     pos.needsUpdate = true; col.needsUpdate = true;
 }
 
@@ -443,6 +454,11 @@ function animate() {
 
     if (stage === 3 && s3Aiming && s3AimArrow) s3UpdateAimArrowVisual();
 
+    // Visual enhancements tick
+    if (typeof tickSpaceEnvironment === 'function') {
+        tickSpaceEnvironment(dt, camera);
+    }
+
     camTheta += (targetTheta - camTheta) * 0.1; camPhi += (targetPhi - camPhi) * 0.1; camRadius += (targetRadius - camRadius) * 0.1; updateCameraPosition();
     renderer.render(scene, camera); updateLabels(); tickFX();
 }
@@ -463,8 +479,10 @@ function updateLabels() {
 // Initialize
 window.addEventListener('load', () => {
     initFX();
-    const urlParams = new URLSearchParams(window.location.search);
-    const startStage = parseInt(urlParams.get('stage')) || 1;
+    if (typeof initSpaceEnvironment === 'function') {
+        initSpaceEnvironment(scene, camera);
+    }
+    const startStage = 3;
     setStage(startStage);
     animate();
 });

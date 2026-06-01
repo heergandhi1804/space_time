@@ -14,7 +14,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 20000);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 100000);
 const clock = new THREE.Clock();
 
 let camTheta = 0, camPhi = 1.15, camRadius = 1800;
@@ -194,3 +194,69 @@ window.addEventListener('resize', () => {
         fxCanvas.height = window.innerHeight;
     }
 });
+
+// --- GEOMETRIC WARPING FOR TOP-DOWN VIEWPORT (NATURAL GAUSSIAN BEND) ---
+function getDisplacedXZ(wx, wz, ignore = null) {
+    let dx = 0, dz = 0;
+    let minDist = 999999;
+    
+    // 1. Planets lists (Level 2 & Level 1 Stage 3)
+    if (typeof planets !== 'undefined' && Array.isArray(planets)) {
+        for (const p of planets) {
+            if (p === ignore || !p.mesh) continue;
+            const rx = p.x - wx, rz = p.z - wz;
+            const dist = Math.hypot(rx, rz);
+            if (dist < minDist) minDist = dist;
+            if (dist < 5) continue;
+            
+            const mass = p.mass || 55;
+            const width = 80 + mass * 1.0;
+            const pullFactor = 0.32 * Math.exp(-0.5 * (dist / width) * (dist / width));
+            dx += rx * pullFactor;
+            dz += rz * pullFactor;
+        }
+    }
+    
+    // 2. Central object (Level 1 Stage 1 & 2)
+    if (typeof s1CentralObj !== 'undefined' && s1CentralObj && s1CentralObj !== ignore && s1CentralObj.mesh) {
+        const rx = s1CentralObj.x || 0, rz = s1CentralObj.z || 0;
+        const dx_obj = rx - wx, dz_obj = rz - wz;
+        const dist = Math.hypot(dx_obj, dz_obj);
+        if (dist < minDist) minDist = dist;
+        if (dist >= 5) {
+            const mass = s1CentralObj.mass || 180;
+            const width = 120 + mass * 0.8;
+            const pullFactor = 0.32 * Math.exp(-0.5 * (dist / width) * (dist / width));
+            dx += dx_obj * pullFactor;
+            dz += dz_obj * pullFactor;
+        }
+    }
+    
+    // 3. Sandbox balls (Level 1 Stage 1 & 2)
+    if (typeof s1Balls !== 'undefined' && Array.isArray(s1Balls)) {
+        for (const b of s1Balls) {
+            if (!b.alive || b === ignore || !b.mesh) continue;
+            const rx = b.x - wx, rz = b.z - wz;
+            const dist = Math.hypot(rx, rz);
+            if (dist < minDist) minDist = dist;
+            if (dist < 5) continue;
+            
+            const mass = b.mass || 20;
+            const width = 60 + mass * 1.2;
+            const pullFactor = 0.32 * Math.exp(-0.5 * (dist / width) * (dist / width));
+            dx += rx * pullFactor;
+            dz += rz * pullFactor;
+        }
+    }
+    
+    // Smoothly clamp total displacement to at most 35% of distance to the nearest body
+    const totalDisp = Math.hypot(dx, dz);
+    const maxAllowedDisp = minDist * 0.35;
+    if (totalDisp > maxAllowedDisp && totalDisp > 0) {
+        const scale = maxAllowedDisp / totalDisp;
+        dx *= scale;
+        dz *= scale;
+    }
+    
+    return { x: wx + dx, z: wz + dz };
+}

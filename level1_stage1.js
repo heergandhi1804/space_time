@@ -347,13 +347,13 @@ function updateStage1Physics(dt) {
             b.vx -= accel * ux * step; b.vz -= accel * uz * step;
             b.x  += b.vx * step;      b.z  += b.vz * step;
 
-            // Stage-aware absorb: stage 2 balls have their own radius, prevent eating them on surface
-            const absorbRadius = stage === 2 ? s1CentralObj.radius + b.radius + 10 : s1CentralObj.radius + 15;
+            // Physical touch boundary: watermelon radius + ball radius + safety margin
+            const absorbRadius = s1CentralObj.radius + b.radius + 2;
             if (r < absorbRadius) {
                 const scr = projectToScreen(b.x, 0, b.z);
                 if (scr.visible) {
                     spawnParticles(scr.x, scr.y, { count: 36, color: '#ff8844', life: 55, speed: 4.8, ring: true, huge: true });
-                    showFloatingMessage('Crash!', '#ffb080');
+                    showFloatingMessage('Crash! 💥', '#ffb080');
                 }
                 scene.remove(b.mesh); scene.remove(b.glow);
                 if (selectedS1Ball === b) selectedS1Ball = null;
@@ -361,6 +361,44 @@ function updateStage1Physics(dt) {
                 continue;
             }
         }
+
+        // Ball-vs-ball collision detection
+        for (let i = 0; i < s1Balls.length - 1; i++) {
+            const ba = s1Balls[i];
+            if (!ba.alive || (ba.vx === 0 && ba.vz === 0)) continue;
+            for (let j = i + 1; j < s1Balls.length; j++) {
+                const bb = s1Balls[j];
+                if (!bb.alive || (bb.vx === 0 && bb.vz === 0)) continue;
+                const dist = Math.hypot(ba.x - bb.x, ba.z - bb.z);
+                const minDist = ba.radius + bb.radius;
+                if (dist < minDist) {
+                    ba._crashed = true;
+                    bb._crashed = true;
+                }
+            }
+        }
+    }
+
+    // Remove crashed balls
+    let s1CrashedAny = false;
+    for (let i = s1Balls.length - 1; i >= 0; i--) {
+        const b = s1Balls[i];
+        if (b._crashed) {
+            const scr = projectToScreen(b.x, 0, b.z);
+            if (scr.visible) {
+                spawnParticles(scr.x, scr.y, { count: 30, color: '#ff8844', life: 50, speed: 4.2, ring: true });
+            }
+            scene.remove(b.mesh);
+            scene.remove(b.glow);
+            if (selectedS1Ball === b) selectedS1Ball = null;
+            s1Balls.splice(i, 1);
+            s1CrashedAny = true;
+        }
+    }
+    if (s1CrashedAny) {
+        showFloatingMessage('Crash! 💥', '#ffb080');
+        updateS1Counter();
+        updateBlanketDeformation();
     }
 
     for (let i = s1Balls.length - 1; i >= 0; i--) {

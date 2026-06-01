@@ -18,7 +18,7 @@ function createPlanetMaterial(name, hex) {
     ctx.putImageData(img, 0, 0);
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
     if (name === 'Sun' || name === 'SUN') return new THREE.MeshBasicMaterial({ map: tex });
-    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0.1 });
+    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.15, emissive: new THREE.Color(hex), emissiveIntensity: 0.08 });
 }
 
 function createStage1CentralMaterial() {
@@ -121,17 +121,26 @@ function updateGrid() {
     const pos = gridGeo.attributes.position, col = gridGeo.attributes.color;
     for (let i = 0; i < VCOUNT; i++) {
         const wx = gridXZ[i * 2], wz = gridXZ[i * 2 + 1], wy = warpDepth(wx, wz);
-        pos.setXYZ(i, wx, wy, wz);
+        const disp = typeof getDisplacedXZ === 'function' ? getDisplacedXZ(wx, wz) : { x: wx, z: wz };
+        pos.setXYZ(i, disp.x, wy, disp.z);
         const depth = Math.min(1, Math.abs(wy) / 400);
         col.setXYZ(i, 0.3 + depth * 0.7, 0.55 + depth * 0.45, 1.0);
     }
     pos.needsUpdate = true; col.needsUpdate = true;
 }
 
-let blanketMesh = null, blanketGeo = null;
+let blanketMesh = null, blanketGeo = null, blanketOriginalXZ = [];
 function createBlanket() {
     if (blanketMesh) return;
     blanketGeo = new THREE.PlaneGeometry(2200, 2200, 100, 100); blanketGeo.rotateX(-Math.PI / 2);
+    
+    // Cache baseline X and Z coordinates for XZ deformation
+    const posAttr = blanketGeo.attributes.position;
+    blanketOriginalXZ = [];
+    for (let i = 0; i < posAttr.count; i++) {
+        blanketOriginalXZ.push(posAttr.getX(i), posAttr.getZ(i));
+    }
+
     // Grid-pattern canvas texture so deformation is clearly visible
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512;
     const ctx = cv.getContext('2d');
@@ -179,22 +188,41 @@ function computeBlanketY(wx, wz, ignore) {
     return y;
 }
 function updateBlanketDeformation() {
-    if (!blanketGeo) return;
+    if (!blanketGeo || !blanketOriginalXZ.length) return;
     const pos = blanketGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, computeBlanketY(pos.getX(i), pos.getZ(i)));
+    for (let i = 0; i < pos.count; i++) {
+        const ox = blanketOriginalXZ[i * 2], oz = blanketOriginalXZ[i * 2 + 1];
+        const wy = computeBlanketY(ox, oz);
+        const disp = typeof getDisplacedXZ === 'function' ? getDisplacedXZ(ox, oz) : { x: ox, z: oz };
+        pos.setXYZ(i, disp.x, wy, disp.z);
+    }
     pos.needsUpdate = true; blanketGeo.computeVertexNormals();
 }
 
 // --- FACTORY ---
 function makeGlowSprite(name, hex, r) {
-    const canv = document.createElement('canvas'); canv.width = 64; canv.height = 64;
+    const canv = document.createElement('canvas'); canv.width = 256; canv.height = 256;
     const ctx = canv.getContext('2d'), c = new THREE.Color(hex);
-    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.6)`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+    
+    if (name === 'Sun' || name === 'SUN') {
+        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)'); // White-hot core
+        grad.addColorStop(0.12, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.85)`);
+        grad.addColorStop(0.35, `rgba(${~~(c.r * 255)},${~~(c.g * 255 * 0.7)},${~~(c.b * 255 * 0.3)},0.25)`); // Corona
+        grad.addColorStop(0.75, `rgba(${~~(c.r * 255)},${~~(c.g * 255 * 0.5)},${~~(c.b * 255 * 0.15)},0.06)`); // Wide bloom
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
+    } else {
+        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        const innerAlpha = (name === 'Jupiter' || name === 'Saturn') ? 0.45 : 0.35;
+        grad.addColorStop(0, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},${innerAlpha})`);
+        grad.addColorStop(0.4, `rgba(${~~(c.r * 255)},${~~(c.g * 255)},${~~(c.b * 255)},0.09)`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
+    }
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canv), transparent: true, depthWrite: false }));
-    sprite.scale.set(r * 5, r * 5, 1); return sprite;
+    const sizeMult = (name === 'Sun' || name === 'SUN') ? 6.5 : 5.0;
+    sprite.scale.set(r * sizeMult, r * sizeMult, 1); return sprite;
 }
 function addPlanet(x, z, m, hex, name, r) {
     const h = typeof hex === 'string' ? parseInt(hex.replace('#', ''), 16) : hex;
@@ -223,7 +251,7 @@ function syncMeshPosition(p) {
     // Stages 1 and 2 both use the blanket surface; stage 3 uses the warp-depth grid
     const onBlanket = stage === 1 || stage === 2;
     const wy = onBlanket ? computeBlanketY(p.x, p.z, p) : warpDepth(p.x, p.z, p);
-    const py = onBlanket ? wy + visualRadius : wy + visualRadius * 0.55 + 4;
+    const py = wy + visualRadius; // Exactly touching the grid or blanket surface
     p.mesh.position.set(p.x, py, p.z);
     p.glow.position.set(p.x, py, p.z);
     if (p.extras && p.extras.ring) p.extras.ring.position.set(p.x, py, p.z);
@@ -249,8 +277,9 @@ function createOrbitRing(p) {
     p._orbitRingBaseColor = ringColor; // saved for dynamic re-coloring in S3
     const geo = new THREE.RingGeometry(0.993, 1.007, 128);
     const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: ringColor, transparent: true, opacity: 0.60,
-        side: THREE.DoubleSide, depthWrite: false
+        color: ringColor, transparent: true, opacity: 0.70,
+        side: THREE.DoubleSide, depthWrite: false,
+        blending: THREE.AdditiveBlending
     }));
     ring.rotation.x = Math.PI / 2;
     scene.add(ring); p.orbitRing = ring;
@@ -286,18 +315,62 @@ function updatePhysics(dt) {
 }
 
 function checkPlanetCrashes() {
-    // Only check planet-vs-sun crashes. Planet-to-planet deletion is disabled so
-    // Venus and Earth (and dragged planets) can overlap without disappearing.
-    if (!isPlaying || stage === 1 || !sunObj) return;
+    if (!isPlaying || !sunObj) return;
+
+    if (stage === 3) {
+        // 1. Planet-vs-Planet collision detection
+        for (let i = 0; i < planets.length - 1; i++) {
+            const pa = planets[i];
+            if (pa === sunObj) continue;
+            for (let j = i + 1; j < planets.length; j++) {
+                const pb = planets[j];
+                if (pb === sunObj) continue;
+                const dist = Math.hypot(pa.x - pb.x, pa.z - pb.z);
+                const minDist = (pa.mass + pb.mass) * 0.45;
+                if (dist < minDist) {
+                    pa._crashed = true;
+                    pb._crashed = true;
+                }
+            }
+        }
+
+        // Handle planet-vs-planet crashes
+        const crashNames = [];
+        for (let i = planets.length - 1; i >= 0; i--) {
+            const p = planets[i];
+            if (p === sunObj || !p._crashed) continue;
+            p._crashed = false;
+            crashNames.push(p.name);
+            const scr = projectToScreen(p.x, 0, p.z);
+            if (scr.visible) {
+                spawnParticles(scr.x, scr.y, { count: 40, color: '#ffaa44', life: 60, speed: 5.5, ring: true });
+            }
+            if (p.trailLine) { scene.remove(p.trailLine); p.trailLine.geometry.dispose(); p.trailLine.material.dispose(); p.trailLine = null; }
+            if (typeof _s3FocusPlanet !== 'undefined' && _s3FocusPlanet === p) {
+                _s3FocusPlanet = null;
+                if (typeof updateS3InfoPanel === 'function') updateS3InfoPanel(null);
+                if (typeof closeS3Popup === 'function') closeS3Popup();
+            }
+            removePlanetFromScene(p);
+            planets.splice(i, 1);
+            p.status = 'fell';
+            lostPlanets.push(p);
+        }
+        if (crashNames.length) {
+            showFloatingMessage(crashNames.join(' & ') + ' crashed! 💥', '#ffb080');
+            updateLostList();
+            updateGrid();
+        }
+    }
+
+    // 2. Planet-vs-Sun collision detection
     for (let i = planets.length - 1; i >= 0; i--) {
         const p = planets[i]; if (p === sunObj) continue;
-        if (stage === 2 && !p.stage2Modified) continue; // kinematic stage-2 never actually hits sun
         const dSun = Math.hypot(p.x - sunObj.x, p.z - sunObj.z);
         if (dSun < (p.mass * 0.45) + (sunObj.mass * 0.45) + 8) {
             const s = projectToScreen(p.x, 0, p.z);
             if (s.visible) {
                 if (stage === 3) {
-                    // Child-friendly burst: two-layer explosion — glow ring + sparks
                     spawnParticles(s.x, s.y, { count: 50, color: '#ffaa44', life: 65, speed: 5.5, ring: true, huge: true });
                     spawnParticles(s.x, s.y, { count: 24, color: '#ffdd88', life: 45, speed: 3.2 });
                     showFloatingMessage('Falling In! 💥', '#ff8844');
@@ -313,7 +386,7 @@ function checkPlanetCrashes() {
             }
             removePlanetFromScene(p); planets.splice(i, 1);
             if (stage === 3) {
-                updateGrid(); // force immediate grid refresh — no ghost crater
+                updateGrid();
                 p.status = 'fell';
                 lostPlanets.push(p);
                 updateLostList();
@@ -669,6 +742,12 @@ function animate() {
     }
     if (sunObj) sunLight.position.set(sunObj.x, sunObj.mesh.position.y + 200, sunObj.z);
     else if (s1CentralObj) sunLight.position.set(0, s1CentralObj.mesh.position.y + 200, 0);
+
+    // Visual enhancements tick
+    if (typeof tickSpaceEnvironment === 'function') {
+        tickSpaceEnvironment(dt, camera);
+    }
+
     updateCameraPosition();
     updateLabels();
     renderer.render(scene, camera);
@@ -693,6 +772,9 @@ function syncS1CentralMesh() {
 // Initialize
 window.addEventListener('load', () => {
     initFX();
+    if (typeof initSpaceEnvironment === 'function') {
+        initSpaceEnvironment(scene, camera);
+    }
     const urlParams = new URLSearchParams(window.location.search);
     const startStage = parseInt(urlParams.get('stage')) || 1;
     setStage(startStage);
